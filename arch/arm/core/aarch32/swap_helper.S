@@ -491,11 +491,19 @@ _stack_frame_msp:
 _stack_frame_endif:
 #elif defined(CONFIG_ARMV7_M_ARMV8_M_MAINLINE)
     tst lr, #_EXC_RETURN_SPSEL_Msk /* did we come from thread mode ? */
+
+    /* ITE == IF, THEN, ELSE block, condition is "equal" */
+    /* 
+    TODO: this code uses both "ite" (IF THEN ELSE) and 
+    the "eq" / "ne" suffixes on the MRS instruction. Isn't this 
+    overkill? Won't the processor already execute a single one of these
+    based on the ITE EQ statement?
+    */
+
     ite eq  /* if zero (equal), came from handler mode */
         mrseq r0, MSP   /* handler mode, stack frame is on MSP */
         mrsne r0, PSP   /* thread mode, stack frame is on PSP */
 #endif
-
 
     /* Figure out what SVC call number was invoked */
 
@@ -510,9 +518,11 @@ _stack_frame_endif:
     ldrb r1, [r1, #-2]
 #endif
 
+    /* R1 now contains the SVC number, read from the instruction */
+
    /*
     * grab service call number:
-    * 0: Unused
+    * 0: Context Switch, if using arch_switch()
     * 1: irq_offload (if configured)
     * 2: kernel panic or oops (software generated fatal exception)
     * 3: System call (if user mode supported)
@@ -520,26 +530,47 @@ _stack_frame_endif:
 #if defined(CONFIG_USERSPACE)
     mrs r2, CONTROL
 
-    cmp r1, #3
+    /* Test if r1 == 3, if yes go execute a Zephyr syscall */
+    cmp r1, #_SVC_CALL_SYSTEM_CALL
     beq _do_syscall
 
     /*
+     * Not a Zephyr syscall, we must be executing one of the other 
+     * functions of the SVC handler.
+     * 
      * check that we are privileged before invoking other SVCs
+     *
      * oops if we are unprivileged
      */
+
+     /* 
+     test for privileged mode by checking 
+     that bit0 of the CONTROL CSR is 0 
+     */
+
 #if defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE)
+    /* ARMv6 doesn't support testing registers against immediates... */
     movs r3, #0x1
     tst r2, r3
 #elif defined(CONFIG_ARMV7_M_ARMV8_M_MAINLINE)
     tst r2, #0x1
-#endif
+#endif /* CONFIG_ARMV6_M_ARMV8_M_BASELINE */
+    /* Kernel oops if we are not executing in privileged mode */
     bne _oops
 
 #endif /* CONFIG_USERSPACE */
 
-    cmp r1, #2
+    /* Check if SVC == 2, software has requested a kernel panic / oops */
+    cmp r1, #_SVC_CALL_RUNTIME_EXCEPT
     beq _oops
 
+    cmp r1, #_SVC_CALL_CONTEXT_SWITCH
+    beq _context_switch
+
+    /* 
+    Final case, effectively the "Default" statement, 
+    which handles IRQ offload 
+    */
 #if defined(CONFIG_IRQ_OFFLOAD)
     push {r0, lr}
     bl z_irq_do_offload  /* call C routine which executes the offload */
@@ -553,6 +584,39 @@ _stack_frame_endif:
     /* exception return is done in z_arm_int_exit() */
     b z_arm_int_exit
 #endif
+
+/* 
+we use SVC calls to handle context switching when using the new 
+"arch_switch" handler 
+*/
+
+#if defined(CONFIG_USE_SWITCH)
+_context_switch:
+    /* 
+    need to restore r0 and r1 which were pushed 
+    onto the stack when we called "svc".
+
+    These contain the "new" and "old" k_thread pointers, 
+    which are the argumenst to the _arch_context_switch function.
+
+    R0 currently contains the stackframe pointer. Lets move that to R2, 
+    since we need to restore the value of R0.
+    */
+    mov r2, r0
+
+    /* Now re-load the contents of R0 and R1 from the stackframe */
+#if defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE)
+    ldr r0, [r2]     /* grab previous contents of R0 from the stack frame */ 
+    movs r3, #4      /* ARMv6 doesn't support loading from a register + immediate offset... */
+    ldr r1, [r2, r3] /* grab previous contents of R1 from the stack frame */
+
+#elif defined(CONFIG_ARMV7_M_ARMV8_M_MAINLINE)
+    ldr r0, [r2]     /* grab previous contents of R0 from the stack frame */
+    ldr r1, [r2, #4] /* grab previous contents of R1 from the stack frame */
+#endif
+
+    b _arch_context_switch
+#endif /* CONFIG_USE_SWITCH */
 
 _oops:
     push {r0, lr}
