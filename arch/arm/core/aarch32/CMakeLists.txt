@@ -20,6 +20,7 @@ zephyr_library_sources_ifdef(CONFIG_IRQ_OFFLOAD irq_offload.c)
 zephyr_library_sources_ifdef(CONFIG_SW_VECTOR_RELAY irq_relay.S)
 zephyr_library_sources_ifdef(CONFIG_THREAD_LOCAL_STORAGE ../common/tls.c)
 zephyr_library_sources_ifdef(CONFIG_USERSPACE userspace.S)
+zephyr_library_sources_ifdef(CONFIG_USE_SWITCH switch.S)
 
 add_subdirectory_ifdef(CONFIG_CPU_CORTEX_M cortex_m)
 add_subdirectory_ifdef(CONFIG_CPU_CORTEX_M_HAS_CMSE cortex_m/cmse)
