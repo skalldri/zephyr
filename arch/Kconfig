@@ -34,7 +34,6 @@ config ARM
 	# is really only necessary for Cortex-M with ARM MPU!
 	select GEN_PRIV_STACKS
 	select ARCH_HAS_THREAD_LOCAL_STORAGE if CPU_AARCH32_CORTEX_R || CPU_CORTEX_M || CPU_AARCH32_CORTEX_A
-	select USE_SWITCH
 	select USE_SWITCH_SUPPORTED
 	help
 	  ARM architecture

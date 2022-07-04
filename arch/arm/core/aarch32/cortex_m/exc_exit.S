@@ -69,10 +69,19 @@ SECTION_SUBSEC_FUNC(TEXT, _HandlerModeExit, z_arm_exc_exit)
 #ifdef CONFIG_PREEMPT_ENABLED
 	ldr r3, =_kernel
 
+	/* 
+	TODO: When exiting interrupt handler, should we be doing this?
+	Seems incorrect when using arch_swap()
+	*/
+
 	ldr r1, [r3, #_kernel_offset_to_current]
 	ldr r0, [r3, #_kernel_offset_to_ready_q_cache]
 	cmp r0, r1
 	beq _EXIT_EXC
+
+	/*
+	TODO: definitely don't execute a PendSV when CONFIG_USE_SWITCH is true!
+	*/
 
 	/* context switch required, pend the PendSV exception */
 	ldr r1, =_SCS_ICSR

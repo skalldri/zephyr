@@ -41,7 +41,18 @@ GDATA(_kernel)
 
 GTEXT(z_arm_context_switch)
 SECTION_FUNC(TEXT, z_arm_context_switch)
+    svc #_SVC_CALL_CONTEXT_SWITCH
+    bx lr
 
+/* 
+Routine that actually handles context switching, must be executed 
+from privileged mode.
+
+Same arguments as above function
+*/
+
+GTEXT(_arch_context_switch)
+SECTION_FUNC(TEXT, _arch_context_switch)
 #ifdef CONFIG_INSTRUMENT_THREAD_SWITCHING
     /* Register the context switch */
     push {r0, lr}                              // Push r0 and lr onto the thread stack
@@ -100,6 +111,12 @@ SECTION_FUNC(TEXT, z_arm_context_switch)
 
     /* save callee-saved + psp in thread */
 #if defined(CONFIG_CPU_CORTEX_M)
+    /* 
+    mrs is a magic instruction that is used to read data from 
+    one of the special system register. in this case, we are 
+    reading the Process Stack Pointer (PSP) into the `ip` register
+    */
+    /* TODO: again, why do we call this "IP" here? This is R12 */
     mrs ip, PSP
 #endif
 
@@ -133,6 +150,7 @@ SECTION_FUNC(TEXT, z_arm_context_switch)
     This ARM arch supports directly pushing all registers 
     into a stack, so do this in one instruction 
     */
+    /* What is the v naming convention for these registers? */
     stmia r0, {v1-v8, ip}
 
 #ifdef CONFIG_FPU_SHARING
@@ -277,17 +295,30 @@ out_fp_inactive:
      * state and this is what we're handling currently.
      */
 #if defined(CONFIG_CPU_CORTEX_M)
-    ldr v4, =_SCS_ICSR
-    ldr v3, =_SCS_ICSR_UNPENDSV
+    /* 
+    TODO: why does this use strange names for registers?
+    Inspection via debugger indicates v3 == r6
+    */
+    /* 
+    OLD CODE: this function is no longer called via PendSV, 
+    so this is no longer needed
+    */
+    /* ldr v4, =_SCS_ICSR */
+    /* ldr v3, =_SCS_ICSR_UNPENDSV */
 #endif
 
     /* _kernel is still in r1 */
+
+    /* 
+    save the old thread into switch_handle, which is required
+    by wait_for_switch
+    */
+    str r2, [r2, #___thread_t_switch_handle_OFFSET]
 
     /* the thread to run is in R3. Move it into R2 */
     mov r2, r3
 
     /* OLD CODE: */
-
     /* Fetch the "new" thread pointer from the kernel's "ready_q_cache" */
     /* ldr r2, [r1, #_kernel_offset_to_ready_q_cache] */
     /* Store the "new" thread pointer in the kernel's "current" variable */
@@ -304,7 +335,8 @@ out_fp_inactive:
 
     /* _SCS_ICSR is still in v4 and _SCS_ICSR_UNPENDSV in v3 */
 #if defined(CONFIG_CPU_CORTEX_M)
-    str v3, [v4, #0]
+    /* OLD CODE: this function isn't called via PendSV, so this is no longer needed */
+    /* str v3, [v4, #0] */
 #endif
 
 #if defined(CONFIG_THREAD_LOCAL_STORAGE)
@@ -525,6 +557,7 @@ in_fp_inactive:
 #endif /* CONFIG_ARMV6_M_ARMV8_M_BASELINE */
 
 #if defined(CONFIG_CPU_CORTEX_M)
+    /* restore the Process Stack Pointer for the incomming thread */
     msr PSP, ip
 #endif
 
