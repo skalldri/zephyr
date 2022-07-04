@@ -140,6 +140,10 @@ void arch_new_thread(struct k_thread *thread, k_thread_stack_t *stack,
 	 * initial values in all other registers/thread entries are
 	 * irrelevant.
 	 */
+
+#if defined(CONFIG_USE_SWITCH)
+	thread->switch_handle = thread;
+#endif
 }
 
 #if defined(CONFIG_MPU_STACK_GUARD) && defined(CONFIG_FPU) \

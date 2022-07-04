@@ -61,11 +61,13 @@ static ALWAYS_INLINE void arch_kernel_init(void)
 #endif /* CONFIG_ARM_AARCH32_MMU */
 }
 
+#if !defined(CONFIG_USE_SWITCH)
 static ALWAYS_INLINE void
 arch_thread_return_value_set(struct k_thread *thread, unsigned int value)
 {
 	thread->arch.swap_return_value = value;
 }
+#endif
 
 #if !defined(CONFIG_MULTITHREADING) && defined(CONFIG_CPU_CORTEX_M)
 extern FUNC_NORETURN void z_arm_switch_to_main_no_multithreading(
@@ -76,6 +78,19 @@ extern FUNC_NORETURN void z_arm_switch_to_main_no_multithreading(
 	z_arm_switch_to_main_no_multithreading
 
 #endif /* !CONFIG_MULTITHREADING && CONFIG_CPU_CORTEX_M */
+
+#if defined(CONFIG_USE_SWITCH)
+static inline void arch_switch(void *switch_to, void **switched_from)
+{
+	extern void z_arm_context_switch(struct k_thread *new, struct k_thread *old);
+
+	struct k_thread *new = switch_to;
+	struct k_thread *old = CONTAINER_OF(switched_from, struct k_thread,
+					    switch_handle);
+
+	z_arm_context_switch(new, old);
+}
+#endif
 
 extern FUNC_NORETURN void z_arm_userspace_enter(k_thread_entry_t user_entry,
 					       void *p1, void *p2, void *p3,

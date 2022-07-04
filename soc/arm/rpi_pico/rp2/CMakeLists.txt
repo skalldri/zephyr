@@ -4,3 +4,7 @@
 zephyr_library()
 
 zephyr_library_sources(soc.c)
+
+if(CONFIG_SMP)
+    zephyr_library_sources(soc_mp.c)
+endif()
