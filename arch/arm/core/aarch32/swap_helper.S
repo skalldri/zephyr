@@ -564,8 +564,10 @@ _stack_frame_endif:
     cmp r1, #_SVC_CALL_RUNTIME_EXCEPT
     beq _oops
 
+#if defined(CONFIG_USE_SWITCH)
     cmp r1, #_SVC_CALL_CONTEXT_SWITCH
     beq _context_switch
+#endif /* CONFIG_USE_SWITCH */
 
     /* 
     Final case, effectively the "Default" statement, 
