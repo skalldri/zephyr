@@ -81,6 +81,16 @@ SECTION_SUBSEC_FUNC(TEXT, _HandlerModeExit, z_arm_exc_exit)
 
 	/*
 	TODO: definitely don't execute a PendSV when CONFIG_USE_SWITCH is true!
+
+	TODO: We need to do something here to kick a context switch in the Kernel.
+	On exiting ISRs, this code would previously detect that we need to perform 
+	a context switch to a new thread, and would execute the context switch by 
+	issuing a PendSV.
+
+	Now, we need some new mechanism that can detect when a context switch is needed
+	and trigger an appropriate SVC call. Maybe PendSV can be used for that purpose now? 
+
+	Need to call z_get_next_switch_handle() here and trigger as needed
 	*/
 
 	/* context switch required, pend the PendSV exception */

@@ -148,7 +148,10 @@ SECTION_FUNC(TEXT, _arch_context_switch)
 #elif defined(CONFIG_ARMV7_M_ARMV8_M_MAINLINE)
     /* 
     This ARM arch supports directly pushing all registers 
-    into a stack, so do this in one instruction 
+    into a stack, so do this in one instruction.
+
+    We previously saved the Process Stack Pointer into the IP
+    register, so push that as well.
     */
     /* What is the v naming convention for these registers? */
     stmia r0, {v1-v8, ip}
@@ -274,6 +277,8 @@ out_fp_inactive:
 #if defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE)
     cpsid i
 #elif defined(CONFIG_ARMV7_M_ARMV8_M_MAINLINE)
+    mrs r0, BASEPRI_MAX
+    /* Disable interrupts? Which interrupts get disabled... */
     movs.n r0, #_EXC_IRQ_DEFAULT_PRIO
     msr BASEPRI_MAX, r0
     isb /* Make the effect of disabling interrupts be realized immediately */
@@ -389,7 +394,10 @@ out_fp_inactive:
     movs.n r3, #0
     str r3, [r4]
 #else
+    /* Load new thread's basePRI value into R0
     ldr r0, [r2, #_thread_offset_to_basepri]
+    
+    /* Set new thread's basePRI value to 0 */
     movs r3, #0
     str r3, [r2, #_thread_offset_to_basepri]
 #endif
