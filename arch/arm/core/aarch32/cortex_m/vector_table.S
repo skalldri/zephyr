@@ -39,7 +39,7 @@ SECTION_SUBSEC_FUNC(exc_vector_table,_vector_table_section,_vector_table)
     .word z_main_stack + CONFIG_MAIN_STACK_SIZE
 
     .word z_arm_reset
-    .word z_arm_nmi
+    .word z_arm_nmi_wrapper
 
     .word z_arm_hard_fault
 #if defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE)
@@ -74,7 +74,7 @@ SECTION_SUBSEC_FUNC(exc_vector_table,_vector_table_section,_vector_table)
 #error Unknown ARM architecture
 #endif /* CONFIG_ARMV6_M_ARMV8_M_BASELINE */
     .word 0
-#if defined(CONFIG_MULTITHREADING)
+#if defined(CONFIG_MULTITHREADING) && !defined(CONFIG_USE_SWITCH)
     .word z_arm_pendsv
 #else
     .word z_arm_exc_spurious
@@ -82,7 +82,8 @@ SECTION_SUBSEC_FUNC(exc_vector_table,_vector_table_section,_vector_table)
 #if defined(CONFIG_CPU_CORTEX_M_HAS_SYSTICK)
 #if defined(CONFIG_SYS_CLOCK_EXISTS) && \
     defined(CONFIG_CORTEX_M_SYSTICK_INSTALL_ISR)
-    .word sys_clock_isr
+    /* .word sys_clock_isr */
+    .word z_arm_sys_clock_wrapper
 #else
     .word z_arm_exc_spurious
 #endif /* CONFIG_SYS_CLOCK_EXISTS && CONFIG_CORTEX_M_SYSTICK_INSTALL_ISR */

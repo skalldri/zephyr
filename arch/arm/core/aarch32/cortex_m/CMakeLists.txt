@@ -8,6 +8,7 @@ zephyr_library_sources(
   fault_s.S
   fpu.c
   irq_init.c
+  isr.S
   reset.S
   scb.c
   thread_abort.c

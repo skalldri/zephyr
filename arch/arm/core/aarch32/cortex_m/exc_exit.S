@@ -66,18 +66,8 @@ SECTION_SUBSEC_FUNC(TEXT, _HandlerModeExit, z_arm_int_exit)
 
 SECTION_SUBSEC_FUNC(TEXT, _HandlerModeExit, z_arm_exc_exit)
 
-#ifdef CONFIG_PREEMPT_ENABLED
-	ldr r3, =_kernel
-
-	/* 
-	TODO: When exiting interrupt handler, should we be doing this?
-	Seems incorrect when using arch_swap()
-	*/
-
-	ldr r1, [r3, #_kernel_offset_to_current]
-	ldr r0, [r3, #_kernel_offset_to_ready_q_cache]
-	cmp r0, r1
-	beq _EXIT_EXC
+#if defined(CONFIG_PREEMPT_ENABLED)
+#if defined(CONFIG_USE_SWITCH)
 
 	/*
 	TODO: definitely don't execute a PendSV when CONFIG_USE_SWITCH is true!
@@ -93,10 +83,62 @@ SECTION_SUBSEC_FUNC(TEXT, _HandlerModeExit, z_arm_exc_exit)
 	Need to call z_get_next_switch_handle() here and trigger as needed
 	*/
 
+	/* Get the current k_thread */
+	ldr r3, =_kernel
+	ldr r1, [r3, #_kernel_offset_to_current] /* r1 is now the "current" thread */
+
+	/* 
+	Call z_get_next_switch_handle() with a NULL-pointer since we haven't done any work 
+	to save the thread context yet
+	*/
+	push {r1, lr}
+	mov r0, #0
+	bl z_get_next_switch_handle
+
+#if defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE)
+	pop {r1, r0}
+	mov lr, r0
+#else
+	pop {r1, lr}
+#endif /* CONFIG_ARMV6_M_ARMV8_M_BASELINE */
+
+	/* 
+	R0 is the return value from z_get_next_switch_handle().
+	We passed in NULL as the argument, so if there is no thread waiting for switching then
+	we will get NULL as the return value in R0 */
+	cmp r0, #0
+	beq _EXIT_EXC
+
+	/*
+	 * Switch thread
+	 * r0: new thread
+	 * r1: old thread
+	 */
+	push {lr}
+	bl z_arm_context_switch
+
+#if defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE)
+	pop {r0}
+	mov lr, r0
+#else
+	pop {lr}
+#endif /* CONFIG_ARMV6_M_ARMV8_M_BASELINE */
+
+	bx lr
+
+#else
+	ldr r3, =_kernel
+
+	ldr r1, [r3, #_kernel_offset_to_current]
+	ldr r0, [r3, #_kernel_offset_to_ready_q_cache]
+	cmp r0, r1
+	beq _EXIT_EXC
+
 	/* context switch required, pend the PendSV exception */
 	ldr r1, =_SCS_ICSR
 	ldr r2, =_SCS_ICSR_PENDSV
 	str r2, [r1]
+#endif /* CONFIG_USE_SWITCH */
 
 _ExcExitWithGdbStub:
 

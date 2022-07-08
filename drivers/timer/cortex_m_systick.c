@@ -147,7 +147,7 @@ void sys_clock_isr(void *arg)
 	} else {
 		sys_clock_announce(1);
 	}
-	z_arm_int_exit();
+	// z_arm_int_exit();
 }
 
 void sys_clock_set_timeout(int32_t ticks, bool idle)

@@ -87,5 +87,5 @@ void z_NmiHandlerSet(void (*pHandler)(void))
 void z_arm_nmi(void)
 {
 	handler();
-	z_arm_int_exit();
+	// z_arm_int_exit();
 }
