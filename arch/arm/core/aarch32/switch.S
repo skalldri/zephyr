@@ -41,6 +41,10 @@ GDATA(_kernel)
 
 GTEXT(z_arm_context_switch)
 SECTION_FUNC(TEXT, z_arm_context_switch)
+    /* 
+    Boost the priority of the SVCall to 0, in case interrupts are currently locked.
+    If we don't do this, we will HardFault upon issuing SVC
+    */
     svc #_SVC_CALL_CONTEXT_SWITCH
     bx lr
 

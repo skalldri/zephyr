@@ -91,15 +91,15 @@ SECTION_SUBSEC_FUNC(TEXT, _HandlerModeExit, z_arm_exc_exit)
 	Call z_get_next_switch_handle() with a NULL-pointer since we haven't done any work 
 	to save the thread context yet
 	*/
-	push {r1, lr}
-	mov r0, #0
+	push {r1, r3, lr}
+	movs r0, #0
 	bl z_get_next_switch_handle
 
 #if defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE)
-	pop {r1, r0}
-	mov lr, r0
+	pop {r1, r3, r4}
+	mov lr, r4
 #else
-	pop {r1, lr}
+	pop {r1, r3, lr}
 #endif /* CONFIG_ARMV6_M_ARMV8_M_BASELINE */
 
 	/* 

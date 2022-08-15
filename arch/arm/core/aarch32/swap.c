@@ -17,7 +17,7 @@ extern const int _k_neg_eagain;
  * It simply stores the intlock key (the BASEPRI value) parameter into
  * current->basepri, and then triggers a PendSV exception, which does
  * the heavy lifting of context switching.
-
+ *
  * This is the only place we have to save BASEPRI since the other paths to
  * z_arm_pendsv all come from handling an interrupt, which means we know the
  * interrupts were not locked: in that case the BASEPRI value is 0.

@@ -114,9 +114,8 @@ static uint32_t elapsed(void)
 }
 
 /* Callout out of platform assembly, not hooked via IRQ_CONNECT... */
-void sys_clock_isr(void *arg)
+ISR_DIRECT_DECLARE(sys_clock_isr)
 {
-	ARG_UNUSED(arg);
 	uint32_t dticks;
 
 	/* Update overflow_cyc and clear COUNTFLAG by invoking elapsed() */
@@ -147,7 +146,8 @@ void sys_clock_isr(void *arg)
 	} else {
 		sys_clock_announce(1);
 	}
-	// z_arm_int_exit();
+	
+	return 1;
 }
 
 void sys_clock_set_timeout(int32_t ticks, bool idle)

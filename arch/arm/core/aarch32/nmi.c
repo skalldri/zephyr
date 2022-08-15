@@ -83,9 +83,8 @@ void z_NmiHandlerSet(void (*pHandler)(void))
  * Simply call what is installed in 'static void(*handler)(void)'.
  *
  */
-
-void z_arm_nmi(void)
+ISR_DIRECT_DECLARE(z_arm_nmi)
 {
 	handler();
-	// z_arm_int_exit();
+	return 1;
 }

@@ -88,8 +88,8 @@ static inline void arch_switch(void *switch_to, void **switched_from)
 	struct k_thread *old = CONTAINER_OF(switched_from, struct k_thread,
 					    switch_handle);
 
-	//printk("Arch Switch: Old=%p, New=%p\n", old, new);
-
+	// IRQ needs to be unlocked before calling z_arm_context_switch()
+	irq_unlock(0);
 	z_arm_context_switch(new, old);
 }
 #endif
