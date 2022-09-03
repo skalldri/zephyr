@@ -49,6 +49,13 @@
 #endif
 #endif
 
+#if defined(CONFIG_USE_SWITCH)
+#define _thread_offset_to_switch_to \
+	(___thread_t_arch_OFFSET + ___thread_arch_t_switch_to_OFFSET)
+#define _thread_offset_to_switched_from \
+	(___thread_t_arch_OFFSET + ___thread_arch_t_switched_from_OFFSET)
+#endif
+
 #if defined(CONFIG_THREAD_STACK_INFO)
 #define _thread_offset_to_stack_info_start \
 	(___thread_stack_info_t_start_OFFSET + ___thread_t_stack_info_OFFSET)

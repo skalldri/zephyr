@@ -127,6 +127,10 @@ struct _thread_arch {
 #endif
 #endif
 #endif
+#if defined(CONFIG_USE_SWITCH)
+	struct k_thread* switch_to; // k_thread to switch-to when
+	struct k_thread* switched_from; // k_thread to switch-to when
+#endif
 };
 
 #if defined(CONFIG_FPU_SHARING) && defined(CONFIG_MPU_STACK_GUARD)

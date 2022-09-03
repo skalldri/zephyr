@@ -69,6 +69,7 @@ SECTION_SUBSEC_FUNC(TEXT, _HandlerModeExit, z_arm_exc_exit)
 #if defined(CONFIG_PREEMPT_ENABLED)
 #if defined(CONFIG_USE_SWITCH)
 
+#if 0
 	/*
 	TODO: definitely don't execute a PendSV when CONFIG_USE_SWITCH is true!
 
@@ -126,7 +127,65 @@ SECTION_SUBSEC_FUNC(TEXT, _HandlerModeExit, z_arm_exc_exit)
 
 	bx lr
 
+#else // NEW CODE
+	
+    /* Get the current k_thread */
+	/* We _must_ do this before calling z_get_next_switch_handle(), because calling that 
+	function can change the value of _current */
+	ldr r3, =_kernel
+	ldr r1, [r3, #_kernel_offset_to_current] /* r1 is now the "current" thread */
+
+	/* 
+	Call z_get_next_switch_handle() with a NULL-pointer since we haven't done any work 
+	to save the thread context yet
+	*/
+	push {r1, lr}
+	movs r0, #0
+	bl z_get_next_switch_handle
+
+#if defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE)
+	pop {r1, r2} 
+	mov lr, r2
 #else
+	pop {r1, lr}
+#endif /* CONFIG_ARMV6_M_ARMV8_M_BASELINE */
+
+	/* 
+	R0 is the return value from z_get_next_switch_handle().
+	We passed in NULL as the argument, so if there is no thread waiting for switching then
+	we will get NULL as the return value in R0.
+	In that event, jump to _EXIT_EXC to skip pending the PendSV exception
+	*/
+	cmp r0, #0
+	beq _EXIT_EXC
+
+	/* store the return value from z_get_next_switch_handle (r0) into the
+	 current thread's "switch_to" member */
+	movs r2, #_thread_offset_to_switch_to
+	adds r3, r1, r2
+	str r0, [r3]
+
+	movs r2, #_thread_offset_to_switched_from
+	adds r3, r1, r2
+	str r1, [r3]
+
+	/* store the current thread into the
+	 new thread's "switched_from" member */
+	movs r2, #_thread_offset_to_switched_from
+	adds r3, r0, r2
+	str r1, [r3]
+	
+	movs r2, #_thread_offset_to_switch_to
+	adds r3, r0, r2
+	str r0, [r3]
+
+	/* context switch required, pend the PendSV exception */
+	ldr r1, =_SCS_ICSR
+	ldr r2, =_SCS_ICSR_PENDSV
+	str r2, [r1]
+#endif
+
+#else /* !CONFIG_USE_SWITCH */
 	ldr r3, =_kernel
 
 	ldr r1, [r3, #_kernel_offset_to_current]

@@ -23,6 +23,8 @@
 
 #include <kernel_arch_data.h>
 
+#include <zephyr/sys/__assert.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -80,6 +82,7 @@ extern FUNC_NORETURN void z_arm_switch_to_main_no_multithreading(
 #endif /* !CONFIG_MULTITHREADING && CONFIG_CPU_CORTEX_M */
 
 #if defined(CONFIG_USE_SWITCH)
+#if 0 // Original code using SVC. Hard to implement reliably due to IRQ priority problems
 static inline void arch_switch(void *switch_to, void **switched_from)
 {
 	extern void z_arm_context_switch(struct k_thread *new, struct k_thread *old);
@@ -89,9 +92,41 @@ static inline void arch_switch(void *switch_to, void **switched_from)
 					    switch_handle);
 
 	// IRQ needs to be unlocked before calling z_arm_context_switch()
-	irq_unlock(0);
 	z_arm_context_switch(new, old);
 }
+#else
+static inline void arch_switch(void *switch_to, void **switched_from)
+{
+	__ASSERT(switch_to != NULL, "switch_to cannot be NULL");
+	__ASSERT(switched_from != NULL, "switched_from cannot be NULL");
+
+	struct k_thread *new = switch_to;
+	struct k_thread *old = CONTAINER_OF(switched_from, struct k_thread,
+					    switch_handle);
+
+	// Use this to pass data into our upcoming PendSV interrupt
+	// PendSV interrupt is responsible for setting this back to NULL
+	// after it has completed the context switch
+	old->arch.switch_to = new;
+	old->arch.switched_from = old;
+
+	new->arch.switch_to = new;
+	new->arch.switched_from = old;
+
+#if defined(CONFIG_CPU_CORTEX_M)
+	/* set pending bit to make sure we will take a PendSV exception */
+	SCB->ICSR |= SCB_ICSR_PENDSVSET_Msk;
+
+	/* clear mask or enable all irqs to take a pendsv */
+	irq_unlock(0);
+#elif defined(CONFIG_CPU_AARCH32_CORTEX_R) || defined(CONFIG_CPU_AARCH32_CORTEX_A)
+	z_arm_cortex_r_svc();
+	irq_unlock(key);
+#else
+#error "This arch is not supported"
+#endif
+}
+#endif
 #endif
 
 extern FUNC_NORETURN void z_arm_userspace_enter(k_thread_entry_t user_entry,

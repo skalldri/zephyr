@@ -76,6 +76,22 @@ SECTION_FUNC(TEXT, z_arm_pendsv)
     ldr r1, =_kernel
     ldr r2, [r1, #_kernel_offset_to_current]
 
+#if defined(CONFIG_USE_SWITCH)
+    /* if we are using switch(), then _current has already been updated to the new thread.
+       fetch the "thread to save context into" from _current->arch.switched_from
+     */
+    movs r0, #_thread_offset_to_switched_from
+    add r2, r0
+    ldr r3, [r2]
+
+    /* null-out the "switched_from" value */
+    movs r0, #0
+    str r0, [r2]
+
+    /* make r2 the current thread value */
+    mov r2, r3
+#endif
+
 #if defined(CONFIG_ARM_STORE_EXC_RETURN)
     /* Store LSB of LR (EXC_RETURN) to the thread's 'mode' word. */
     strb lr, [r2, #_thread_offset_to_mode_exc_return]
@@ -201,10 +217,32 @@ out_fp_inactive:
 
     /* _kernel is still in r1 */
 
+#if defined(CONFIG_USE_SWITCH)
+    /* 
+    save the old thread into switch_handle, which is required
+    by wait_for_switch
+    */
+    str r2, [r2, #___thread_t_switch_handle_OFFSET]
+
+    /* fetch the thread to run from this thread's "switch_to" member */
+    movs r0, #_thread_offset_to_switch_to
+    add r2, r0
+    ldr r3, [r2]
+
+    /* NULL-out the #_thread_offset_to_switch_to value */
+    movs r0, #0
+    str r0, [r2]
+
+    /* make r2 the new thread */
+    /* no need to store this in _current since it has already been updated */
+    mov r2, r3
+#else /* !CONFIG_USE_SWITCH */
     /* fetch the thread to run from the ready queue cache */
     ldr r2, [r1, #_kernel_offset_to_ready_q_cache]
 
+    /* store the thread ready-to-run in the kernel's _current variable */
     str r2, [r1, #_kernel_offset_to_current]
+#endif /* CONFIG_USE_SWITCH */
 
     /*
      * Clear PendSV so that if another interrupt comes in and

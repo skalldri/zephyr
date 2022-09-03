@@ -46,6 +46,11 @@ GEN_OFFSET_SYM(_thread_arch_t, sp_usr);
 #endif
 #endif
 
+#if defined(CONFIG_USE_SWITCH)
+GEN_OFFSET_SYM(_thread_arch_t, switch_to);
+GEN_OFFSET_SYM(_thread_arch_t, switched_from);
+#endif
+
 #if defined(CONFIG_FPU) && defined(CONFIG_FPU_SHARING)
 GEN_OFFSET_SYM(_thread_arch_t, preempt_float);
 #endif
