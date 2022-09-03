@@ -67,68 +67,7 @@ SECTION_SUBSEC_FUNC(TEXT, _HandlerModeExit, z_arm_int_exit)
 SECTION_SUBSEC_FUNC(TEXT, _HandlerModeExit, z_arm_exc_exit)
 
 #if defined(CONFIG_PREEMPT_ENABLED)
-#if defined(CONFIG_USE_SWITCH)
-
-#if 0
-	/*
-	TODO: definitely don't execute a PendSV when CONFIG_USE_SWITCH is true!
-
-	TODO: We need to do something here to kick a context switch in the Kernel.
-	On exiting ISRs, this code would previously detect that we need to perform 
-	a context switch to a new thread, and would execute the context switch by 
-	issuing a PendSV.
-
-	Now, we need some new mechanism that can detect when a context switch is needed
-	and trigger an appropriate SVC call. Maybe PendSV can be used for that purpose now? 
-
-	Need to call z_get_next_switch_handle() here and trigger as needed
-	*/
-
-	/* Get the current k_thread */
-	ldr r3, =_kernel
-	ldr r1, [r3, #_kernel_offset_to_current] /* r1 is now the "current" thread */
-
-	/* 
-	Call z_get_next_switch_handle() with a NULL-pointer since we haven't done any work 
-	to save the thread context yet
-	*/
-	push {r1, r3, lr}
-	movs r0, #0
-	bl z_get_next_switch_handle
-
-#if defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE)
-	pop {r1, r3, r4}
-	mov lr, r4
-#else
-	pop {r1, r3, lr}
-#endif /* CONFIG_ARMV6_M_ARMV8_M_BASELINE */
-
-	/* 
-	R0 is the return value from z_get_next_switch_handle().
-	We passed in NULL as the argument, so if there is no thread waiting for switching then
-	we will get NULL as the return value in R0 */
-	cmp r0, #0
-	beq _EXIT_EXC
-
-	/*
-	 * Switch thread
-	 * r0: new thread
-	 * r1: old thread
-	 */
-	push {lr}
-	bl z_arm_context_switch
-
-#if defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE)
-	pop {r0}
-	mov lr, r0
-#else
-	pop {lr}
-#endif /* CONFIG_ARMV6_M_ARMV8_M_BASELINE */
-
-	bx lr
-
-#else // NEW CODE
-	
+#if defined(CONFIG_USE_SWITCH)	
     /* Get the current k_thread */
 	/* We _must_ do this before calling z_get_next_switch_handle(), because calling that 
 	function can change the value of _current */
@@ -183,7 +122,6 @@ SECTION_SUBSEC_FUNC(TEXT, _HandlerModeExit, z_arm_exc_exit)
 	ldr r1, =_SCS_ICSR
 	ldr r2, =_SCS_ICSR_PENDSV
 	str r2, [r1]
-#endif
 
 #else /* !CONFIG_USE_SWITCH */
 	ldr r3, =_kernel

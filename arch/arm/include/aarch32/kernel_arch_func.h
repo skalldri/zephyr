@@ -82,19 +82,6 @@ extern FUNC_NORETURN void z_arm_switch_to_main_no_multithreading(
 #endif /* !CONFIG_MULTITHREADING && CONFIG_CPU_CORTEX_M */
 
 #if defined(CONFIG_USE_SWITCH)
-#if 0 // Original code using SVC. Hard to implement reliably due to IRQ priority problems
-static inline void arch_switch(void *switch_to, void **switched_from)
-{
-	extern void z_arm_context_switch(struct k_thread *new, struct k_thread *old);
-
-	struct k_thread *new = switch_to;
-	struct k_thread *old = CONTAINER_OF(switched_from, struct k_thread,
-					    switch_handle);
-
-	// IRQ needs to be unlocked before calling z_arm_context_switch()
-	z_arm_context_switch(new, old);
-}
-#else
 static inline void arch_switch(void *switch_to, void **switched_from)
 {
 	__ASSERT(switch_to != NULL, "switch_to cannot be NULL");
@@ -124,10 +111,9 @@ static inline void arch_switch(void *switch_to, void **switched_from)
 	irq_unlock(key);
 #else
 #error "This arch is not supported"
-#endif
+#endif // CONFIG_CPU_CORTEX_M
 }
-#endif
-#endif
+#endif // CONFIG_USE_SWITCH
 
 extern FUNC_NORETURN void z_arm_userspace_enter(k_thread_entry_t user_entry,
 					       void *p1, void *p2, void *p3,

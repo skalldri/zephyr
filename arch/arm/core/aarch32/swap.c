@@ -32,7 +32,6 @@ extern const int _k_neg_eagain;
  */
 int arch_swap(unsigned int key)
 {
-	printk("ARCH SWAP CALLED\n");
 	/* store off key and return value */
 	_current->arch.basepri = key;
 	_current->arch.swap_return_value = _k_neg_eagain;

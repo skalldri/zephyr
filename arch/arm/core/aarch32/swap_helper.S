@@ -560,7 +560,7 @@ _stack_frame_endif:
 
    /*
     * grab service call number:
-    * 0: Context Switch, if using arch_switch()
+    * 0: Unused
     * 1: irq_offload (if configured)
     * 2: kernel panic or oops (software generated fatal exception)
     * 3: System call (if user mode supported)
@@ -602,11 +602,6 @@ _stack_frame_endif:
     cmp r1, #_SVC_CALL_RUNTIME_EXCEPT
     beq _oops
 
-#if defined(CONFIG_USE_SWITCH)
-    cmp r1, #_SVC_CALL_CONTEXT_SWITCH
-    beq _context_switch
-#endif /* CONFIG_USE_SWITCH */
-
     /* 
     Final case, effectively the "Default" statement, 
     which handles IRQ offload 
@@ -624,39 +619,6 @@ _stack_frame_endif:
     /* exception return is done in z_arm_int_exit() */
     b z_arm_int_exit
 #endif
-
-/* 
-we use SVC calls to handle context switching when using the new 
-"arch_switch" handler 
-*/
-
-#if defined(CONFIG_USE_SWITCH)
-_context_switch:
-    /* 
-    need to restore r0 and r1 which were pushed 
-    onto the stack when we called "svc".
-
-    These contain the "new" and "old" k_thread pointers, 
-    which are the argumenst to the _arch_context_switch function.
-
-    R0 currently contains the stackframe pointer. Lets move that to R2, 
-    since we need to restore the value of R0.
-    */
-    mov r2, r0
-
-    /* Now re-load the contents of R0 and R1 from the stackframe */
-#if defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE)
-    ldr r0, [r2]     /* grab previous contents of R0 from the stack frame */ 
-    movs r3, #4      /* ARMv6 doesn't support loading from a register + immediate offset... */
-    ldr r1, [r2, r3] /* grab previous contents of R1 from the stack frame */
-
-#elif defined(CONFIG_ARMV7_M_ARMV8_M_MAINLINE)
-    ldr r0, [r2]     /* grab previous contents of R0 from the stack frame */
-    ldr r1, [r2, #4] /* grab previous contents of R1 from the stack frame */
-#endif
-
-    b _arch_context_switch
-#endif /* CONFIG_USE_SWITCH */
 
 _oops:
     push {r0, lr}
