@@ -34,8 +34,6 @@ SECTION_FUNC(TEXT, z_arm64_context_switch)
 
 	/* Save the current SP_EL0 */
 	mrs	x4, sp_el0
-	
-	/* x1 contains the "old" k_thread pointer. Store registers x19-x29, x4 in the thread callee_saved storage block */
 	stp	x19, x20, [x1, #_thread_offset_to_callee_saved_x19_x20]
 	stp	x21, x22, [x1, #_thread_offset_to_callee_saved_x21_x22]
 	stp	x23, x24, [x1, #_thread_offset_to_callee_saved_x23_x24]
