@@ -8,3 +8,7 @@ zephyr_library_sources(soc.c)
 if(CONFIG_SMP)
     zephyr_library_sources(soc_mp.c)
 endif()
+
+if(CONFIG_ATOMIC_OPERATIONS_ARCH)
+    zephyr_library_sources(atomic.c)
+endif()

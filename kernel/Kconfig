@@ -468,12 +468,15 @@ config ATOMIC_OPERATIONS_ARCH
 
 config ATOMIC_OPERATIONS_C
 	bool
+	depends on !SMP
 	help
 	  Use atomic operations routines that are implemented entirely
 	  in C by locking interrupts. Selected by architectures which either
 	  do not have support for atomic operations in their instruction
 	  set, or haven't been implemented yet during bring-up, and also
 	  the compiler does not have support for the atomic __sync_* builtins.
+	  Not safe to use with SMP, since it results in infinite recursion
+	  within OS spinlock implementation.
 endmenu
 
 menu "Timer API Options"

@@ -65,7 +65,7 @@ SECTION_SUBSEC_FUNC(TEXT,_reset_section,z_arm_reset)
  * search for a __start symbol instead, so create that alias here.
  */
 SECTION_SUBSEC_FUNC(TEXT,_reset_section,__start)
-
+    bkpt
 #if defined(CONFIG_DEBUG_THREAD_INFO)
     /* Clear z_sys_post_kernel flag for RTOS aware debuggers */
     movs.n r0, #0
