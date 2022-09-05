@@ -536,7 +536,7 @@ void arch_switch_to_main_thread(struct k_thread *main_thread, char *stack_ptr,
 {
 	z_arm_prepare_switch_to_main();
 
-	_current = main_thread;
+	_current_cpu->current = main_thread;
 
 #if defined(CONFIG_THREAD_LOCAL_STORAGE) && defined(CONFIG_CPU_CORTEX_M)
 	/* On Cortex-M, TLS uses a global variable as pointer to

@@ -21,5 +21,7 @@ config PICOSDK_USE_FLASH
 
 config PICOSDK_USE_MULTICORE
 	bool
+	select REQUIRES_FULL_LIBC if CPLUSPLUS
 	help
 	  Enable APIs for running code on the second processor
+	  

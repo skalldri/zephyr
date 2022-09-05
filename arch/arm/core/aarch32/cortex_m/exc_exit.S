@@ -68,25 +68,54 @@ SECTION_SUBSEC_FUNC(TEXT, _HandlerModeExit, z_arm_exc_exit)
 
 #if defined(CONFIG_PREEMPT_ENABLED)
 #if defined(CONFIG_USE_SWITCH)	
-    /* Get the current k_thread */
-	/* We _must_ do this before calling z_get_next_switch_handle(), because calling that 
-	function can change the value of _current */
-	ldr r3, =_kernel
-	ldr r1, [r3, #_kernel_offset_to_current] /* r1 is now the "current" thread */
+
+#ifdef CONFIG_SMP
+    /* determine which CPU we're running on */
+    push {lr}
+    bl arm32_curr_cpu
+
+    /*
+    r0 is the return from arm32_curr_cpu(), contains the address
+    of our struct _cpu for this core. 
+
+    store _cpu for this core in r1
+    */
+    mov r1, r0
+
+#if defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE)
+    pop {r3}
+    mov lr, r3
+#else
+    pop {lr}
+#endif /* CONFIG_ARMV6_M_ARMV8_M_BASELINE */
+#else /* !CONFIG_SMP */
+    /* load _kernel into r1 */
+    ldr r1, =_kernel
+
+#if (___kernel_t_cpus_OFFSET != 0)
+    /* get offset to "cpus[0]" entry in _kernel */
+    adds r1, r1, #___kernel_t_cpus_OFFSET
+#endif
+#endif /* CONFIG_SMP */
+
+	/* r1 now contains the address of the correct "_cpu" entry for this core */
+
+    /* load "_cpu[x].current" into r2 */
+    ldr r2, [r1, #___cpu_t_current_OFFSET]
 
 	/* 
 	Call z_get_next_switch_handle() with a NULL-pointer since we haven't done any work 
 	to save the thread context yet
 	*/
-	push {r1, lr}
+	push {r1, r2, lr}
 	movs r0, #0
 	bl z_get_next_switch_handle
 
 #if defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE)
-	pop {r1, r2} 
-	mov lr, r2
+	pop {r1, r2, r3} 
+	mov lr, r3
 #else
-	pop {r1, lr}
+	pop {r1, r2, lr}
 #endif /* CONFIG_ARMV6_M_ARMV8_M_BASELINE */
 
 	/* 
@@ -100,22 +129,24 @@ SECTION_SUBSEC_FUNC(TEXT, _HandlerModeExit, z_arm_exc_exit)
 
 	/* store the return value from z_get_next_switch_handle (r0) into the
 	 current thread's "switch_to" member */
-	movs r2, #_thread_offset_to_switch_to
-	adds r3, r1, r2
+	movs r3, #_thread_offset_to_switch_to
+	adds r3, r2, r3
 	str r0, [r3]
 
-	movs r2, #_thread_offset_to_switched_from
-	adds r3, r1, r2
-	str r1, [r3]
+	/* store the current thread (r2) in the current thread's switched_from member */
+	movs r3, #_thread_offset_to_switched_from
+	adds r3, r2, r3
+	str r2, [r3]
 
 	/* store the current thread into the
 	 new thread's "switched_from" member */
-	movs r2, #_thread_offset_to_switched_from
-	adds r3, r0, r2
-	str r1, [r3]
+	movs r3, #_thread_offset_to_switched_from
+	adds r3, r0, r3
+	str r2, [r3]
 	
-	movs r2, #_thread_offset_to_switch_to
-	adds r3, r0, r2
+	/* store the new thread (r0) in the new thread's switch_to member */
+	movs r3, #_thread_offset_to_switch_to
+	adds r3, r0, r3
 	str r0, [r3]
 
 	/* context switch required, pend the PendSV exception */

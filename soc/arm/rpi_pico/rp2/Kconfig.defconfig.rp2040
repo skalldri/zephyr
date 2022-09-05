@@ -15,11 +15,11 @@ config BUILD_OUTPUT_UF2_USE_FLASH_OFFSET
 
 if SMP
 
-# Used to select the required PICOSDK_USE_MUTLICORE symbol
+# Helper symbol used to select the required PICOSDK_USE_MUTLICORE symbol
 config RP2040_SMP
 	bool
 	default y
-	select PICOSDK_USE_MULTICORE
+	select PICOSDK_USE_MULTICORE if SMP
 
 # RP2040 has two CPUs that can be used in SMP mode
 config MP_NUM_CPUS

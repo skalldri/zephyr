@@ -283,3 +283,7 @@ static int sys_clock_driver_init(const struct device *dev)
 
 SYS_INIT(sys_clock_driver_init, PRE_KERNEL_2,
 	 CONFIG_SYSTEM_CLOCK_INIT_PRIORITY);
+
+void smp_timer_init(void) {
+	sys_clock_driver_init(NULL);
+}

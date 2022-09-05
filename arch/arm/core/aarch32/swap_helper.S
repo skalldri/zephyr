@@ -20,6 +20,7 @@
 #include <zephyr/arch/cpu.h>
 #include <zephyr/syscall.h>
 #include <zephyr/kernel.h>
+#include <offsets.h>
 
 #if defined(CONFIG_CPU_CORTEX_M)
 #include <zephyr/arch/arm/aarch32/cortex_m/cpu.h>
@@ -71,13 +72,43 @@ SECTION_FUNC(TEXT, z_arm_pendsv)
     pop {r0, lr}
 #endif /* CONFIG_ARMV6_M_ARMV8_M_BASELINE */
 #endif /* CONFIG_INSTRUMENT_THREAD_SWITCHING */
+    
+#ifdef CONFIG_SMP
+    /* determine which CPU we're running on */
+    push {lr}
+    bl arm32_curr_cpu
 
-    /* load _kernel into r1 and current k_thread into r2 */
+    /*
+    r0 is the return from arm32_curr_cpu(), contains the address
+    of our struct _cpu for this core. 
+
+    store _cpu for this core in r1
+    */
+    mov r1, r0
+
+#if defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE)
+    pop {r3}
+    mov lr, r3
+#else
+    pop {lr}
+#endif /* CONFIG_ARMV6_M_ARMV8_M_BASELINE */
+#else /* !CONFIG_SMP */
+    /* load _kernel into r1 */
     ldr r1, =_kernel
-    ldr r2, [r1, #_kernel_offset_to_current]
+
+#if (___kernel_t_cpus_OFFSET != 0)
+    /* get offset to "cpus[0]" entry in _kernel */
+    adds r1, r1, #___kernel_t_cpus_OFFSET
+#endif
+#endif /* CONFIG_SMP */
+
+    /* r1 now contains the address of the correct "_cpu" entry for this core */
+
+    /* load "_cpu[x].current" into r2 */
+    ldr r2, [r1, #___cpu_t_current_OFFSET]
 
 #if defined(CONFIG_USE_SWITCH)
-    /* if we are using switch(), then _current has already been updated to the new thread.
+    /* if we are using switch(), then _current has already been updated to be the new thread.
        fetch the "thread to save context into" from _current->arch.switched_from
      */
     movs r0, #_thread_offset_to_switched_from
@@ -119,6 +150,7 @@ SECTION_FUNC(TEXT, z_arm_pendsv)
     stmea r0!, {r3-r7}
 #elif defined(CONFIG_ARMV7_M_ARMV8_M_MAINLINE)
     stmia r0, {v1-v8, ip}
+
 #ifdef CONFIG_FPU_SHARING
     /* Assess whether switched-out thread had been using the FP registers. */
     tst lr, #_EXC_RETURN_FTYPE_Msk
@@ -137,6 +169,7 @@ out_fp_endif:
      * regardless of whether the thread has an active FP context.
      */
 #endif /* CONFIG_FPU_SHARING */
+
 #elif defined(CONFIG_ARMV7_R) || defined(CONFIG_AARCH32_ARMV8_R) \
 	|| defined(CONFIG_ARMV7_A)
     /* Store rest of process context */
@@ -157,8 +190,8 @@ out_fp_endif:
      * used since this thread has used it.  Consequently, the caller-saved
      * float registers have not been saved away, so write them to the
      * exception stack frame.
-     */
-    ldr r0, [r1, #_kernel_offset_to_fp_ctx]
+     */ 
+    ldr r0, [r1, #___cpu_t_fp_ctx_OFFSET]
     cmp r0, #0
     beq out_store_thread_context
 
@@ -180,7 +213,7 @@ out_fp_inactive:
      * frame, so zero out the global pointer to note this.
      */
     mov r0, #0
-    str r0, [r1, #_kernel_offset_to_fp_ctx]
+    str r0, [r1, #___cpu_t_fp_ctx_OFFSET]
 #endif /* CONFIG_FPU_SHARING */
 #else
 #error Unknown ARM architecture
@@ -215,7 +248,7 @@ out_fp_inactive:
     ldr v3, =_SCS_ICSR_UNPENDSV
 #endif
 
-    /* _kernel is still in r1 */
+    /* _cpu is still in r1 */
 
 #if defined(CONFIG_USE_SWITCH)
     /* 
@@ -237,11 +270,14 @@ out_fp_inactive:
     /* no need to store this in _current since it has already been updated */
     mov r2, r3
 #else /* !CONFIG_USE_SWITCH */
-    /* fetch the thread to run from the ready queue cache */
-    ldr r2, [r1, #_kernel_offset_to_ready_q_cache]
+    /* load _kernel into r0 */
+    ldr r0, =_kernel
 
-    /* store the thread ready-to-run in the kernel's _current variable */
-    str r2, [r1, #_kernel_offset_to_current]
+    /* fetch the thread to run from the ready queue cache */
+    ldr r2, [r0, #_kernel_offset_to_ready_q_cache]
+
+    /* store the thread ready-to-run in the _cpu's _current variable */
+    str r2, [r1, #___cpu_t_current_OFFSET]
 #endif /* CONFIG_USE_SWITCH */
 
     /*
@@ -322,10 +358,11 @@ _thread_irq_disabled:
 
 #if defined(CONFIG_MPU_STACK_GUARD) || defined(CONFIG_USERSPACE)
     /* Re-program dynamic memory map */
-    push {r2,lr}
+    /* r2 still contains the current thread */
+    push {r2, lr}
     mov r0, r2
     bl z_arm_configure_dynamic_mpu_regions
-    pop {r2,r3}
+    pop {r2, r3}
     mov lr, r3
 #endif
 
@@ -345,7 +382,6 @@ _thread_irq_disabled:
      * instructions with the previous privilege.
      */
     isb
-
 #endif
 
     ldr r4, =_thread_offset_to_callee_saved
@@ -399,10 +435,10 @@ in_fp_endif:
 
 #if defined(CONFIG_MPU_STACK_GUARD) || defined(CONFIG_USERSPACE)
     /* Re-program dynamic memory map */
-    push {r2,lr}
+    push {r2, lr}
     mov r0, r2 /* _current thread */
     bl z_arm_configure_dynamic_mpu_regions
-    pop {r2,lr}
+    pop {r2, lr}
 #endif
 
 #ifdef CONFIG_USERSPACE
@@ -418,7 +454,6 @@ in_fp_endif:
      * instructions with the previous privilege.
      */
     isb
-
 #endif
 
     /* load callee-saved + psp from thread */
@@ -426,10 +461,8 @@ in_fp_endif:
     ldmia r0, {v1-v8, ip}
 #elif defined(CONFIG_ARMV7_R) || defined(CONFIG_AARCH32_ARMV8_R) \
 	|| defined(CONFIG_ARMV7_A)
-_thread_irq_disabled:
-    /* load _kernel into r1 and current k_thread into r2 */
-    ldr r1, =_kernel
-    ldr r2, [r1, #_kernel_offset_to_current]
+
+    /* r2 still contains the current thread */
 
     /* addr of callee-saved regs in thread in r0 */
     ldr r0, =_thread_offset_to_callee_saved
@@ -484,13 +517,13 @@ in_fp_inactive:
 
 #ifdef CONFIG_INSTRUMENT_THREAD_SWITCHING
     /* Register the context switch */
-    push {r0, lr}
+    push {lr}
     bl z_thread_mark_switched_in
 #if defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE)
-    pop {r0, r1}
+    pop {r1}
     mov lr, r1
 #else
-    pop {r0, lr}
+    pop {lr}
 #endif
 #endif /* CONFIG_INSTRUMENT_THREAD_SWITCHING */
 
