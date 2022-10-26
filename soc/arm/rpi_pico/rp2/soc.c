@@ -21,6 +21,8 @@
 #include <hardware/clocks.h>
 #include <hardware/resets.h>
 
+#include "rp2040_atomic.h"
+
 #ifdef CONFIG_RUNTIME_NMI
 extern void z_arm_nmi_init(void);
 #define NMI_INIT() z_arm_nmi_init()
@@ -29,6 +31,15 @@ extern void z_arm_nmi_init(void);
 #endif
 
 LOG_MODULE_REGISTER(soc, CONFIG_SOC_LOG_LEVEL);
+
+#ifdef CONFIG_PLATFORM_SPECIFIC_INIT
+void z_arm_platform_init(void)
+{
+#ifdef CONFIG_ATOMIC_OPERATIONS_ARCH
+	rp2040_atomic_init();
+#endif // CONFIG_ATOMIC_OPERATIONS_ARCH
+}
+#endif // CONFIG_PLATFORM_SPECIFIC_INIT
 
 static int rp2040_init(const struct device *arg)
 {

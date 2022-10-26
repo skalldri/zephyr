@@ -2,6 +2,7 @@
 #include <hardware/sync.h>
 #include <zephyr/sys/atomic.h>
 #include <zephyr/sys/arch_interface.h>
+#include <zephyr/init.h>
 
 // Implementation heavily based on atomic_c.c
 
@@ -18,7 +19,6 @@
     spin_unlock_unsafe(lock); \
     arch_irq_unlock(key); \
     return ret;
-
 
 // Atomic compare-and-set
 bool atomic_cas(atomic_t *target, atomic_val_t old_value,
@@ -155,4 +155,9 @@ atomic_val_t atomic_nand(atomic_t *target, atomic_val_t value)
     *target = ~(*target & value);
 
     ATOMIC_BOILERPLATE_END();
+}
+
+void rp2040_atomic_init() {
+    // Initialize our spinlock HW
+    spin_lock_init(ATOMIC_HW_SPINLOCK);
 }

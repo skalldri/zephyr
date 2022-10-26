@@ -95,7 +95,8 @@ if(CONFIG_HAS_RPI_PICO)
 
   zephyr_library_sources_ifdef(CONFIG_PICOSDK_USE_MULTICORE
           ${rp2_common_dir}/pico_multicore/multicore.c
-          ${rp2_common_dir}/hardware_irq/irq.c)
+          ${rp2_common_dir}/hardware_irq/irq.c
+          ${rp2_common_dir}/hardware_sync/sync.c)
   zephyr_include_directories_ifdef(CONFIG_PICOSDK_USE_MULTICORE
           ${rp2_common_dir}/pico_multicore/include
           ${rp2_common_dir}/hardware_irq/include

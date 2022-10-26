@@ -298,6 +298,12 @@ config FP16_ALT
 
 endchoice
 
+config IDLE_STACK_SIZE
+	default 1024 if SMP
+
+config MAIN_STACK_SIZE
+	default 4096 if SMP
+
 rsource "cortex_m/Kconfig"
 rsource "cortex_a_r/Kconfig"
 
