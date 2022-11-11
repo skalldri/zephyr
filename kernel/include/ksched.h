@@ -64,6 +64,7 @@ void z_ready_thread(struct k_thread *thread);
 void z_requeue_current(struct k_thread *curr);
 struct k_thread *z_swap_next_thread(void);
 void z_thread_abort(struct k_thread *thread);
+void z_dequeue_thread(struct k_thread *thread);
 
 static inline void z_pend_curr_unlocked(_wait_q_t *wait_q, k_timeout_t timeout)
 {
@@ -140,6 +141,10 @@ static inline bool z_is_thread_queued(struct k_thread *thread)
 
 static inline void z_mark_thread_as_suspended(struct k_thread *thread)
 {
+	if (thread->base.is_idle) {
+		__BKPT(0);
+	}
+	
 	thread->base.thread_state |= _THREAD_SUSPENDED;
 
 	SYS_PORT_TRACING_FUNC(k_thread, sched_suspend, thread);

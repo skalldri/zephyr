@@ -269,6 +269,14 @@ static ALWAYS_INLINE void dequeue_thread(struct k_thread *thread)
 	}
 }
 
+void z_dequeue_thread(struct k_thread *thread)
+{
+	thread->base.thread_state &= ~_THREAD_QUEUED;
+	if (should_queue_thread(thread)) {
+		runq_remove(thread);
+	}
+}
+
 static void signal_pending_ipi(void)
 {
 	/* Synchronization note: you might think we need to lock these
@@ -1430,6 +1438,10 @@ static int32_t z_tick_sleep(k_ticks_t ticks)
 	z_mark_thread_as_suspended(_current);
 
 	(void)z_swap(&sched_spinlock, key);
+
+	if (_current->base.is_idle && z_is_thread_state_set(_current, _THREAD_SUSPENDED)) {
+		__BKPT(0);
+	}
 
 	__ASSERT(!z_is_thread_state_set(_current, _THREAD_SUSPENDED), "");
 

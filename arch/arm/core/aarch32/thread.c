@@ -536,6 +536,15 @@ void arch_switch_to_main_thread(struct k_thread *main_thread, char *stack_ptr,
 {
 	z_arm_prepare_switch_to_main();
 
+	// Take the main thread out of the runq so that our secondary processor(s) don't
+	// immediately try to execute the z_main_thread
+#if defined(CONFIG_USE_SWITCH) && defined(CONFIG_SMP)
+	/* Take the new _current out of the queue */
+	if (z_is_thread_queued(main_thread)) {
+		z_dequeue_thread(main_thread);
+	}
+#endif
+
 	_current_cpu->current = main_thread;
 
 #if defined(CONFIG_THREAD_LOCAL_STORAGE) && defined(CONFIG_CPU_CORTEX_M)
@@ -582,8 +591,6 @@ void arch_switch_to_main_thread(struct k_thread *main_thread, char *stack_ptr,
 #if defined(CONFIG_CPU_CORTEX_M)
 	"msr   PSP, %1\n\t"	/* __set_PSP(stack_ptr) */
 #endif
-
-	"movs r1, #0\n\t"
 #if defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE) \
 	|| defined(CONFIG_ARMV7_R) \
 	|| defined(CONFIG_AARCH32_ARMV8_R) \
@@ -595,7 +602,8 @@ void arch_switch_to_main_thread(struct k_thread *main_thread, char *stack_ptr,
 #else
 #error Unknown ARM architecture
 #endif /* CONFIG_ARMV6_M_ARMV8_M_BASELINE */
-	"isb\n\t"
+	"isb\n\t" /* required after msr */
+	"movs r1, #0\n\t"
 	"movs r2, #0\n\t"
 	"movs r3, #0\n\t"
 	"bl z_thread_entry\n\t"	/* z_thread_entry(_main, 0, 0, 0); */

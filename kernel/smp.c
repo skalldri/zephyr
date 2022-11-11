@@ -87,6 +87,8 @@ static inline FUNC_NORETURN void smp_init_top(void *arg)
 	z_dummy_thread_init(&dummy_thread);
 	smp_timer_init();
 
+	__BKPT(0);
+
 	z_swap_unlocked();
 
 	CODE_UNREACHABLE; /* LCOV_EXCL_LINE */

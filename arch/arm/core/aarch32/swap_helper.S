@@ -60,7 +60,6 @@ GDATA(z_arm_tls_ptr)
  */
 
 SECTION_FUNC(TEXT, z_arm_pendsv)
-
 #ifdef CONFIG_INSTRUMENT_THREAD_SWITCHING
     /* Register the context switch */
     push {r0, lr}
@@ -116,8 +115,8 @@ SECTION_FUNC(TEXT, z_arm_pendsv)
     ldr r3, [r2]
 
     /* null-out the "switched_from" value */
-    movs r0, #0
-    str r0, [r2]
+    /*movs r0, #0
+    str r0, [r2]*/
 
     /* make r2 the current thread value */
     mov r2, r3
@@ -134,7 +133,7 @@ SECTION_FUNC(TEXT, z_arm_pendsv)
 
     /* save callee-saved + psp in thread */
 #if defined(CONFIG_CPU_CORTEX_M)
-    mrs ip, PSP
+    mrs r12, PSP
 #endif
 
 #if defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE)
@@ -145,7 +144,7 @@ SECTION_FUNC(TEXT, z_arm_pendsv)
     mov r4, r9
     mov r5, r10
     mov r6, r11
-    mov r7, ip
+    mov r7, r12
     /* store r8-12 */
     stmea r0!, {r3-r7}
 #elif defined(CONFIG_ARMV7_M_ARMV8_M_MAINLINE)
@@ -263,8 +262,8 @@ out_fp_inactive:
     ldr r3, [r2]
 
     /* NULL-out the #_thread_offset_to_switch_to value */
-    movs r0, #0
-    str r0, [r2]
+    /*movs r0, #0
+    str r0, [r2]*/
 
     /* make r2 the new thread */
     /* no need to store this in _current since it has already been updated */
@@ -317,7 +316,7 @@ out_fp_inactive:
     str r0, [r4]
 #endif
 
-#endif
+#endif // CONFIG_THREAD_LOCAL_STORAGE
 
 #if defined(CONFIG_ARM_STORE_EXC_RETURN)
     /* Restore EXC_RETURN value. */
@@ -334,7 +333,6 @@ out_fp_inactive:
      */
     ldr r4, =_thread_offset_to_basepri
     adds r4, r2, r4
-
     ldr r0, [r4]
     movs.n r3, #0
     str r3, [r4]
@@ -504,7 +502,7 @@ in_fp_inactive:
 #endif /* CONFIG_ARMV6_M_ARMV8_M_BASELINE */
 
 #if defined(CONFIG_CPU_CORTEX_M)
-    msr PSP, ip
+    msr PSP, r12
 #endif
 
 #ifdef CONFIG_BUILTIN_STACK_GUARD

@@ -35,9 +35,8 @@ void _secondary_processor_trampoline_start()
 {
     printk("Hello from CPU 1!\n");
 
-    k_busy_wait(10 * 1000 * 1000);
-
-    __breakpoint();
+    //k_busy_wait(10 * USEC_PER_SEC);
+    //__breakpoint();
 
     printk("Starting run!\n");
 
