@@ -15,11 +15,12 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/init.h>
-#include <zephyr/logging/log.h>
+//#include <zephyr/logging/log.h>
 
 #include <hardware/regs/resets.h>
 #include <hardware/clocks.h>
 #include <hardware/resets.h>
+#include <hardware/sync.h>
 
 #include "rp2040_atomic.h"
 
@@ -30,8 +31,6 @@ extern void z_arm_nmi_init(void);
 #define NMI_INIT()
 #endif
 
-LOG_MODULE_REGISTER(soc, CONFIG_SOC_LOG_LEVEL);
-
 #ifdef CONFIG_PLATFORM_SPECIFIC_INIT
 void z_arm_platform_init(void)
 {
@@ -40,6 +39,12 @@ void z_arm_platform_init(void)
 #endif // CONFIG_ATOMIC_OPERATIONS_ARCH
 }
 #endif // CONFIG_PLATFORM_SPECIFIC_INIT
+
+#if defined(CONFIG_SMP)
+unsigned int _get_core_num(void) {
+	return get_core_num();
+}
+#endif
 
 static int rp2040_init(const struct device *arg)
 {

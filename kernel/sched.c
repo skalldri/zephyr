@@ -1074,9 +1074,30 @@ void *z_get_next_switch_handle(void *interrupted)
 		}
 		new_thread = next_up();
 
+		// Assert that the old thread's PSP is somewhere within the valid stack range
+		// for that thread
+		__ASSERT(old_thread->callee_saved.psp >= old_thread->stack_info.start && 
+			old_thread->callee_saved.psp <= (old_thread->stack_info.start + old_thread->stack_info.size), 
+			"OLD THREAD STACK OUT OF VALID RANGE.\n"
+			"old_thread: %p\n"
+			"psp: 0x%x",
+			(void*)old_thread,
+			old_thread->callee_saved.psp);
+
+		// Assert that the new thread's PSP is somewhere within the valid stack range
+		// for that thread
+		__ASSERT(new_thread->callee_saved.psp >= new_thread->stack_info.start && 
+			new_thread->callee_saved.psp <= (new_thread->stack_info.start + new_thread->stack_info.size), 
+			"NEW THREAD STACK OUT OF VALID RANGE.\n"
+			"new_thread: %p\n"
+			"psp: 0x%x",
+			(void*)new_thread,
+			new_thread->callee_saved.psp);
+
 		z_sched_usage_switch(new_thread);
 
 		if (old_thread != new_thread) {
+			printk("z_get_next_switch_handle: old (%p) -> new (%p)\n", (void*)old_thread, (void*)new_thread);
 			update_metairq_preempt(new_thread);
 			wait_for_switch(new_thread);
 			arch_cohere_stacks(old_thread, interrupted, new_thread);

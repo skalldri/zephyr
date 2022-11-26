@@ -235,18 +235,6 @@ out_fp_inactive:
 #error Unknown ARM architecture
 #endif /* CONFIG_ARMV6_M_ARMV8_M_BASELINE */
 
-    /*
-     * Prepare to clear PendSV with interrupts unlocked, but
-     * don't clear it yet. PendSV must not be cleared until
-     * the new thread is context-switched in since all decisions
-     * to pend PendSV have been taken with the current kernel
-     * state and this is what we're handling currently.
-     */
-#if defined(CONFIG_CPU_CORTEX_M)
-    ldr v4, =_SCS_ICSR
-    ldr v3, =_SCS_ICSR_UNPENDSV
-#endif
-
     /* _cpu is still in r1 */
 
 #if defined(CONFIG_USE_SWITCH)
@@ -254,7 +242,9 @@ out_fp_inactive:
     save the old thread into switch_handle, which is required
     by wait_for_switch
     */
-    str r2, [r2, #___thread_t_switch_handle_OFFSET]
+    mov r0, r2
+    adds r0, #___thread_t_switch_handle_OFFSET
+    str r2, [r0]
 
     /* fetch the thread to run from this thread's "switch_to" member */
     movs r0, #_thread_offset_to_switch_to
@@ -279,6 +269,18 @@ out_fp_inactive:
     str r2, [r1, #___cpu_t_current_OFFSET]
 #endif /* CONFIG_USE_SWITCH */
 
+#if defined(CONFIG_CPU_CORTEX_M) && !defined(CONFIG_USE_SWITCH)
+    /*
+     * Prepare to clear PendSV with interrupts unlocked, but
+     * don't clear it yet. PendSV must not be cleared until
+     * the new thread is context-switched in since all decisions
+     * to pend PendSV have been taken with the current kernel
+     * state and this is what we're handling currently.
+     */
+
+    ldr v4, =_SCS_ICSR
+    ldr v3, =_SCS_ICSR_UNPENDSV
+
     /*
      * Clear PendSV so that if another interrupt comes in and
      * decides, with the new kernel state based on the new thread
@@ -286,10 +288,14 @@ out_fp_inactive:
      * will take, but that previously pended PendSVs do not take,
      * since they were based on the previous kernel state and this
      * has been handled.
+     * 
+     * This behavior is disabled if we are using arch_switch()-style
+     * thread switching. When we get invoked, we _must_ complete the 
+     * original switch that the kernel requested, or we can get ourselves 
+     * into a bad state.
      */
 
     /* _SCS_ICSR is still in v4 and _SCS_ICSR_UNPENDSV in v3 */
-#if defined(CONFIG_CPU_CORTEX_M)
     str v3, [v4, #0]
 #endif
 
@@ -305,8 +311,7 @@ out_fp_inactive:
      * thread variables with offsets added by toolchain.
      */
     mcr 15, 0, r0, cr13, cr0, 3
-#endif
-
+#endif // CONFIG_CPU_AARCH32_CORTEX_R || CONFIG_CPU_AARCH32_CORTEX_A
 #if defined(CONFIG_CPU_CORTEX_M)
     /* For Cortex-M, store TLS pointer in a global variable,
      * as it lacks the process ID or thread ID register
@@ -314,14 +319,13 @@ out_fp_inactive:
      */
     ldr r4, =z_arm_tls_ptr
     str r0, [r4]
-#endif
-
+#endif // CONFIG_CPU_CORTEX_M
 #endif // CONFIG_THREAD_LOCAL_STORAGE
 
 #if defined(CONFIG_ARM_STORE_EXC_RETURN)
     /* Restore EXC_RETURN value. */
     ldrsb lr, [r2, #_thread_offset_to_mode_exc_return]
-#endif
+#endif // CONFIG_ARM_STORE_EXC_RETURN
 
     /* Restore previous interrupt disable state (irq_lock key)
      * (We clear the arch.basepri field after restoring state)
@@ -362,9 +366,9 @@ _thread_irq_disabled:
     bl z_arm_configure_dynamic_mpu_regions
     pop {r2, r3}
     mov lr, r3
-#endif
+#endif // CONFIG_MPU_STACK_GUARD || CONFIG_USERSPACE
 
-#ifdef CONFIG_USERSPACE
+#if defined(CONFIG_USERSPACE)
     /* restore mode */
     ldr r3, =_thread_offset_to_mode
     adds r3, r2, r3
@@ -380,7 +384,7 @@ _thread_irq_disabled:
      * instructions with the previous privilege.
      */
     isb
-#endif
+#endif // CONFIG_USERSPACE
 
     ldr r4, =_thread_offset_to_callee_saved
     adds r0, r2, r4
@@ -402,7 +406,7 @@ _thread_irq_disabled:
     /* restore BASEPRI for the incoming thread */
     msr BASEPRI, r0
 
-#ifdef CONFIG_FPU_SHARING
+#if defined(CONFIG_FPU_SHARING)
     /* Assess whether switched-in thread had been using the FP registers. */
     tst lr, #_EXC_RETURN_FTYPE_Msk
     beq in_fp_active
@@ -429,7 +433,7 @@ in_fp_endif:
     bic r3, #_CONTROL_FPCA_Msk
     msr CONTROL, r3
     isb
-#endif
+#endif // CONFIG_FPU_SHARING
 
 #if defined(CONFIG_MPU_STACK_GUARD) || defined(CONFIG_USERSPACE)
     /* Re-program dynamic memory map */
@@ -437,9 +441,9 @@ in_fp_endif:
     mov r0, r2 /* _current thread */
     bl z_arm_configure_dynamic_mpu_regions
     pop {r2, lr}
-#endif
+#endif // CONFIG_MPU_STACK_GUARD || CONFIG_USERSPACE
 
-#ifdef CONFIG_USERSPACE
+#if defined(CONFIG_USERSPACE)
     /* restore mode */
     ldr r0, [r2, #_thread_offset_to_mode]
     mrs r3, CONTROL
@@ -452,7 +456,7 @@ in_fp_endif:
      * instructions with the previous privilege.
      */
     isb
-#endif
+#endif // CONFIG_USERSPACE
 
     /* load callee-saved + psp from thread */
     add r0, r2, #_thread_offset_to_callee_saved
@@ -496,7 +500,7 @@ in_fp_inactive:
     push {r2, lr}
     bl z_arm_configure_dynamic_mpu_regions
     pop {r2, lr}
-#endif
+#endif // CONFIG_ARM_MPU
 #else
 #error Unknown ARM architecture
 #endif /* CONFIG_ARMV6_M_ARMV8_M_BASELINE */
@@ -505,7 +509,7 @@ in_fp_inactive:
     msr PSP, r12
 #endif
 
-#ifdef CONFIG_BUILTIN_STACK_GUARD
+#if defined(CONFIG_BUILTIN_STACK_GUARD)
     /* r2 contains k_thread */
     add r0, r2, #0
     push {r2, lr}
@@ -513,7 +517,7 @@ in_fp_inactive:
     pop {r2, lr}
 #endif /* CONFIG_BUILTIN_STACK_GUARD */
 
-#ifdef CONFIG_INSTRUMENT_THREAD_SWITCHING
+#if defined(CONFIG_INSTRUMENT_THREAD_SWITCHING)
     /* Register the context switch */
     push {lr}
     bl z_thread_mark_switched_in
@@ -525,11 +529,24 @@ in_fp_inactive:
 #endif
 #endif /* CONFIG_INSTRUMENT_THREAD_SWITCHING */
 
+#if defined(CONFIG_CPU_CORTEX_M) && defined(CONFIG_USE_SWITCH)
+    /*
+     * Clear pendsv now that the new thread has been switched in to avoid 
+     * immediately jumping back into the switch code
+     */
+
+    ldr r0, =_SCS_ICSR
+    ldr r1, =_SCS_ICSR_UNPENDSV
+    str r1, [r0, #0]
+#endif
+
     /*
      * Cortex-M: return from PendSV exception
      * Cortex-R: return to the caller (z_arm_{exc,int}_exit, or z_arm_svc)
      */
     bx lr
+
+// END OF z_arm_pendsv FUNCTION
 
 #if defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE) || \
   defined(CONFIG_ARMV7_M_ARMV8_M_MAINLINE)

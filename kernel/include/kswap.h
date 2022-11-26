@@ -146,6 +146,26 @@ static ALWAYS_INLINE unsigned int do_swap(unsigned int key,
 		}
 		k_spin_release(&sched_spinlock);
 		arch_switch(newsh, &old_thread->switch_handle);
+		
+		// Assert that the old thread's PSP is somewhere within the valid stack range
+		// for that thread
+		__ASSERT(old_thread->callee_saved.psp >= old_thread->stack_info.start && 
+			old_thread->callee_saved.psp <= (old_thread->stack_info.start + old_thread->stack_info.size), 
+			"OLD THREAD STACK OUT OF VALID RANGE.\n"
+			"old_thread: %p\n"
+			"psp: 0x%x",
+			(void*)old_thread,
+			old_thread->callee_saved.psp);
+
+		// Assert that the new thread's PSP is somewhere within the valid stack range
+		// for that thread
+		__ASSERT(new_thread->callee_saved.psp >= new_thread->stack_info.start && 
+			new_thread->callee_saved.psp <= (new_thread->stack_info.start + new_thread->stack_info.size), 
+			"NEW THREAD STACK OUT OF VALID RANGE.\n"
+			"new_thread: %p\n"
+			"psp: 0x%x",
+			(void*)new_thread,
+			new_thread->callee_saved.psp);
 	} else {
 		k_spin_release(&sched_spinlock);
 	}

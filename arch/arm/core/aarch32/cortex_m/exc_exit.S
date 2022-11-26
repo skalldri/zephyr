@@ -128,7 +128,7 @@ SECTION_SUBSEC_FUNC(TEXT, _HandlerModeExit, z_arm_exc_exit)
 	beq _EXIT_EXC
 
 	/* store the return value from z_get_next_switch_handle (r0) into the
-	 current thread's "switch_to" member */
+	 (now previous) thread's "switch_to" member */
 	movs r3, #_thread_offset_to_switch_to
 	adds r3, r2, r3
 	str r0, [r3]
@@ -138,7 +138,7 @@ SECTION_SUBSEC_FUNC(TEXT, _HandlerModeExit, z_arm_exc_exit)
 	adds r3, r2, r3
 	str r2, [r3]
 
-	/* store the current thread into the
+	/* store the (now previous) thread into the
 	 new thread's "switched_from" member */
 	movs r3, #_thread_offset_to_switched_from
 	adds r3, r0, r3
