@@ -1109,7 +1109,7 @@ void *z_get_next_switch_handle(void *interrupted)
 				(void*)new_thread,
 				(void*)new_thread->arch.switched_from);
 
-			printk("z_get_next_switch_handle: old (%p) -> new (%p)\n", (void*)old_thread, (void*)new_thread);
+			// printk("z_get_next_switch_handle: old (%p) -> new (%p)\n", (void*)old_thread, (void*)new_thread);
 			update_metairq_preempt(new_thread);
 			wait_for_switch(new_thread);
 			arch_cohere_stacks(old_thread, interrupted, new_thread);

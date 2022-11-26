@@ -116,7 +116,7 @@ static inline void arch_switch(void *switch_to, void **switched_from)
 	// 	__BKPT(0);
 	// }
 
-	printk("arch_switch: old (%p) -> new (%p)\n", (void*)old, (void*)new);
+	// printk("arch_switch: old (%p) -> new (%p)\n", (void*)old, (void*)new);
 
 #if defined(CONFIG_CPU_CORTEX_M)
 	/* set pending bit to make sure we will take a PendSV exception */
