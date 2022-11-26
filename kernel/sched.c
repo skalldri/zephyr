@@ -1097,6 +1097,18 @@ void *z_get_next_switch_handle(void *interrupted)
 		z_sched_usage_switch(new_thread);
 
 		if (old_thread != new_thread) {
+			__ASSERT(
+				old_thread->arch.switch_to == NULL && new_thread->arch.switched_from == NULL, 
+				"Context switch pending during ISR context switch\n"
+				"old_thread: %p\n"
+				"old_thread->switch_to: %p\n"
+				"new_thread: %p\n"
+				"new_thread->switched_from: %p\n",
+				(void*)old_thread,
+				(void*)old_thread->arch.switch_to,
+				(void*)new_thread,
+				(void*)new_thread->arch.switched_from);
+
 			printk("z_get_next_switch_handle: old (%p) -> new (%p)\n", (void*)old_thread, (void*)new_thread);
 			update_metairq_preempt(new_thread);
 			wait_for_switch(new_thread);

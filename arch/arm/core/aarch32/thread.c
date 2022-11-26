@@ -143,6 +143,8 @@ void arch_new_thread(struct k_thread *thread, k_thread_stack_t *stack,
 
 #if defined(CONFIG_USE_SWITCH)
 	thread->switch_handle = thread;
+	thread->arch.switch_to = NULL;
+	thread->arch.switched_from = NULL;
 #endif
 }
 

@@ -115,8 +115,8 @@ SECTION_FUNC(TEXT, z_arm_pendsv)
     ldr r3, [r2]
 
     /* null-out the "switched_from" value */
-    /*movs r0, #0
-    str r0, [r2]*/
+    movs r0, #0
+    str r0, [r2]
 
     /* make r2 the current thread value */
     mov r2, r3
@@ -252,8 +252,8 @@ out_fp_inactive:
     ldr r3, [r2]
 
     /* NULL-out the #_thread_offset_to_switch_to value */
-    /*movs r0, #0
-    str r0, [r2]*/
+    movs r0, #0
+    str r0, [r2]
 
     /* make r2 the new thread */
     /* no need to store this in _current since it has already been updated */

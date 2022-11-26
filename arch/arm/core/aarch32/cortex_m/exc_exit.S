@@ -69,7 +69,7 @@ SECTION_SUBSEC_FUNC(TEXT, _HandlerModeExit, z_arm_exc_exit)
 #if defined(CONFIG_PREEMPT_ENABLED)
 #if defined(CONFIG_USE_SWITCH)	
 
-#ifdef CONFIG_SMP
+#if defined(CONFIG_SMP)
     /* determine which CPU we're running on */
     push {lr}
     bl arm32_curr_cpu
@@ -127,6 +127,63 @@ SECTION_SUBSEC_FUNC(TEXT, _HandlerModeExit, z_arm_exc_exit)
 	cmp r0, #0
 	beq _EXIT_EXC
 
+	/* 
+	   We got a non-zero return code from z_get_next_switch_handle()! That means the kernel
+	   wants us to perform a context switch!
+
+	   The kernel has already updated _current to be the new thread it wants to run.
+	   We saved the old value of _current into r2 before calling z_get_next_switch_handle().
+	   The new thread that the kernel wants to run is in r0.
+
+	   Before we setup the context switch, we need to see if the old _current thread had a pending 
+	   context switch, by checking it's switched_from value.
+
+	   If the old _current thread had a non-NULL value in switched_from, then we had previously
+	   setup a context switch that hasn't had a chance to happen yet, and the kernel changed its mind
+	   about the next thread it wants to run.
+
+	   The "old decision" is stored in r2. The "new decision" is stored in r0.
+
+	   If we detect that the kernel changed its mind, we must:
+	   - Read the "old decision"'s switched_from value and store it in the new decision's "switched_from" value
+	   - Update the thread referenced by switched_from's "switch_to" value for bookkeeping
+	   - NULL-out the "old decision"'s "switched_from" value
+	*/
+
+	// Load the old "_current" thread's "switched_from" value into r1
+	movs r3, #_thread_offset_to_switched_from
+	adds r3, r2, r3
+	ldr r1, [r3]
+
+	// Test if r1 (old _current's switched_from) is NULL
+	cmp r1, #0
+
+	// If NULL, branch to _NO_PENDING_SWITCH
+	beq _NO_PENDING_SWITCH
+
+	// If we get here, then the old thread had a pending switch that hasn't had a chance to execute yet
+	// r0 contains the thread that the kernel wants to switch to
+	// r1 contains the thread pointer that is currently still in the CPU registers, which was the old value of _current
+	// r2 contains the old value of "_current", which never had a chance to start executing
+	// r3 contains the address of r2's switched_from member
+
+	push {r4}
+
+	// NULL-out the old _current's "switched_from" member, since it never got a chance to switch in
+	movs r4, #0
+    str r4, [r3]
+
+	pop {r4}
+
+	// Set the old _current's "switch_handle" member to itself, since it's not running / never was running
+	movs r3, #___thread_t_switch_handle_OFFSET
+	adds r3, r2, r3
+	str r2, [r3]
+
+	// The next section of code assumes r2 contains the "old" thread. Make r2 == r1
+	mov r2, r1
+
+	_NO_PENDING_SWITCH:
 	/* store the return value from z_get_next_switch_handle (r0) into the
 	 (now previous) thread's "switch_to" member */
 	movs r3, #_thread_offset_to_switch_to
@@ -134,9 +191,9 @@ SECTION_SUBSEC_FUNC(TEXT, _HandlerModeExit, z_arm_exc_exit)
 	str r0, [r3]
 
 	/* store the current thread (r2) in the current thread's switched_from member */
-	movs r3, #_thread_offset_to_switched_from
-	adds r3, r2, r3
-	str r2, [r3]
+	// movs r3, #_thread_offset_to_switched_from
+	// adds r3, r2, r3
+	// str r2, [r3]
 
 	/* store the (now previous) thread into the
 	 new thread's "switched_from" member */
@@ -145,9 +202,9 @@ SECTION_SUBSEC_FUNC(TEXT, _HandlerModeExit, z_arm_exc_exit)
 	str r2, [r3]
 	
 	/* store the new thread (r0) in the new thread's switch_to member */
-	movs r3, #_thread_offset_to_switch_to
-	adds r3, r0, r3
-	str r0, [r3]
+	//movs r3, #_thread_offset_to_switch_to
+	//adds r3, r0, r3
+	//str r0, [r3]
 
 	/* context switch required, pend the PendSV exception */
 	ldr r1, =_SCS_ICSR

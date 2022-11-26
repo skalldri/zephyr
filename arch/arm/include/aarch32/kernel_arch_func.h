@@ -91,13 +91,25 @@ static inline void arch_switch(void *switch_to, void **switched_from)
 	struct k_thread *old = CONTAINER_OF(switched_from, struct k_thread,
 					    switch_handle);
 
+	__ASSERT(
+		old->arch.switch_to == NULL && new->arch.switched_from == NULL, 
+		"Context switch pending during call to arch_switch()\n"
+		"old_thread: %p\n"
+		"old_thread->switch_to: %p\n"
+		"new_thread: %p\n"
+		"new_thread->switched_from: %p\n",
+		(void*)old,
+		(void*)old->arch.switch_to,
+		(void*)new,
+		(void*)new->arch.switched_from);
+
 	// Use this to pass data into our upcoming PendSV interrupt
 	// PendSV interrupt is responsible for setting this back to NULL
 	// after it has completed the context switch
 	old->arch.switch_to = new;
-	old->arch.switched_from = old;
+	// old->arch.switched_from = old;
 
-	new->arch.switch_to = new;
+	// new->arch.switch_to = new;
 	new->arch.switched_from = old;
 
 	// if (new->base.is_idle) {

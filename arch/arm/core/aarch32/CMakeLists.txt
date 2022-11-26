@@ -16,6 +16,8 @@ zephyr_library_sources(
 
 zephyr_library_sources_ifdef(CONFIG_SMP smp.c)
 
+zephyr_library_sources_ifdef(CONFIG_USE_SWITCH switch.c)
+
 zephyr_library_sources_ifdef(CONFIG_GEN_SW_ISR_TABLE isr_wrapper.S)
 zephyr_library_sources_ifdef(CONFIG_CPLUSPLUS __aeabi_atexit.c)
 zephyr_library_sources_ifdef(CONFIG_IRQ_OFFLOAD irq_offload.c)
