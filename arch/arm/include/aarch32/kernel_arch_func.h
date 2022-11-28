@@ -106,15 +106,19 @@ static inline void arch_switch(void *switch_to, void **switched_from)
 	// Use this to pass data into our upcoming PendSV interrupt
 	// PendSV interrupt is responsible for setting this back to NULL
 	// after it has completed the context switch
-	old->arch.switch_to = new;
-	// old->arch.switched_from = old;
-
-	// new->arch.switch_to = new;
-	new->arch.switched_from = old;
-
-	// if (new->base.is_idle) {
-	// 	__BKPT(0);
-	// }
+	if ((old->base.thread_state & _THREAD_DUMMY) == 0) {
+		old->arch.switch_to = new;
+		new->arch.switched_from = old;
+	} else {
+		// Special case: during startup, we will be asked to switch from the dummy_thread 
+		// to a real thread.
+		// The dummy thread is allocated on the ISR stack, which will become corrupt when we
+		// perform our initial PendSV (and we want to reclaim the entire stack anyway...).
+		// We pass in a "NULL" switched_from into the PendSV handler to indicate to the context switching
+		// code that we should skip saving the dummy_thread context, and in fact should not interract with
+		// the dummy thread at all.
+		new->arch.switched_from = NULL;
+	}
 
 	// printk("arch_switch: old (%p) -> new (%p)\n", (void*)old, (void*)new);
 

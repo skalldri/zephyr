@@ -143,6 +143,7 @@ SECTION_SUBSEC_FUNC(TEXT,_reset_section,__start)
     ldr r1, =CONFIG_ISR_STACK_SIZE + MPU_GUARD_ALIGN_AND_SIZE
     adds r0, r0, r1
     msr PSP, r0
+
     mrs r0, CONTROL
     movs r1, #2
     orrs r0, r1 /* CONTROL_SPSEL_Msk */
@@ -160,3 +161,46 @@ SECTION_SUBSEC_FUNC(TEXT,_reset_section,__start)
      * (even though we do not intend to return).
      */
     bl z_arm_prep_c
+
+
+GTEXT(z_arm_secondary_core_reset)
+/*
+ * @brief SMP Secondary Core Reset Vector
+ *
+ * We expect this to be executed after some process has initialized the secondary core to the point
+ * where the Machine-mode Stack Pointer (MSP) has been initialized with the correct initial stack depth
+ * for this processor. We will set PSP to that same value and switch over to using PSP during the boot
+ * process for this core. On the first context switch, the stack used by the initialization code will 
+ * be reclaimed for use on ISR handlers by the fact that MSP (the stack used in interrupt context) will
+ * still contain the original stack pointer.
+ */
+SECTION_SUBSEC_FUNC(TEXT,_reset_section,z_arm_secondary_core_reset)
+    /* lock interrupts: will get unlocked when switch to main task */
+#if defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE)
+    cpsid i
+#elif defined(CONFIG_ARMV7_M_ARMV8_M_MAINLINE)
+    movs.n r0, #_EXC_IRQ_DEFAULT_PRIO
+    msr BASEPRI, r0
+#else
+#error Unknown ARM architecture
+#endif
+
+    // Read the current value or MSP into r0
+    mrs r0, MSP
+    // Write the value of MSP into PSP. 
+    msr PSP, r0
+
+    // Instruct the core to use PSP instead or MSP
+    mrs r0, CONTROL
+    movs r1, #2
+    orrs r0, r1 /* CONTROL_SPSEL_Msk */
+    msr CONTROL, r0
+    // Must issue isb instruction after changing the stack pointer
+    isb
+
+    /*
+     * 'bl' jumps the furthest of the branch instructions that are
+     * supported on all platforms. So it is used when jumping to z_arm_secondary_core_entry
+     * (even though we do not intend to return), since we will be reclaiming the entire PSP stack anyway
+     */
+    bl z_arm_secondary_core_entry

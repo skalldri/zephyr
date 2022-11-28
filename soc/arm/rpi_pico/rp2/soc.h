@@ -28,7 +28,7 @@ unsigned int _get_core_num();
 static ALWAYS_INLINE uint32_t arch_proc_id(void)
 {
 	unsigned int core_num = _get_core_num();
-    __ASSERT(core_num < CONFIG_MP_NUM_CPUS, "Invalid core number!");
+    // __ASSERT(core_num < CONFIG_MP_NUM_CPUS, "Invalid core number!");
 
 	return (uint32_t)core_num;
 }

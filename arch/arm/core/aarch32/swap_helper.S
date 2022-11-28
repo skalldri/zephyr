@@ -110,15 +110,40 @@ SECTION_FUNC(TEXT, z_arm_pendsv)
     /* if we are using switch(), then _current has already been updated to be the new thread.
        fetch the "thread to save context into" from _current->arch.switched_from
      */
+    // Calculate address of _current->arch.switched_from, and store address in r0
     movs r0, #_thread_offset_to_switched_from
-    add r2, r0
-    ldr r3, [r2]
+    add r0, r2
+    // Load _current->arch.switched_from into r3
+    ldr r3, [r0]
+
+    push {r4}
 
     /* null-out the "switched_from" value */
-    movs r0, #0
-    str r0, [r2]
+    movs r4, #0
+    str r4, [r0]
 
-    /* make r2 the current thread value */
+    pop {r4}
+
+    /* 
+    Special case: during startup, the kernel will ask us to switch 
+    the dummy_thread and the main thread. The dummy_thread is allocated on the ISR stack,
+    which we have corrupted during the context switch into machine mode. 
+
+    We don't really need to save any context into the dummy_thread, since we will never 
+    schedule it again. In this instance, we will get passed NULL as the "switched_from" value
+    in the current_thread. If we detect this, skip saving thread context into the "switched_from" thread
+    and go straight to restoring the _current thread context
+     */
+    // Test if _current->arch.switched_from == NULL
+    cmp r3, #0
+    // Branch-if-equal: skip saving context if switched_from was NULL
+    // If we branch, r2 remains _current (which is the thread who's context we want to load)
+    // and we skip the context-save step
+    // If we don't branch, we will set r2 to be the "old" thread, (who's context we need
+    // to save before restoring _current) and continue with the context save step
+    beq _SKIP_CONTEXT_SAVE
+
+    /* make r2 the thread we want to save context from */
     mov r2, r3
 #endif
 
@@ -258,6 +283,8 @@ out_fp_inactive:
     /* make r2 the new thread */
     /* no need to store this in _current since it has already been updated */
     mov r2, r3
+
+_SKIP_CONTEXT_SAVE:
 #else /* !CONFIG_USE_SWITCH */
     /* load _kernel into r0 */
     ldr r0, =_kernel

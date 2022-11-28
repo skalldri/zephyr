@@ -28,6 +28,10 @@ extern "C" {
 /* Wrapper around printk to avoid including printk.h in assert.h */
 void assert_print(const char *fmt, ...);
 
+#if defined(CONFIG_SMP)
+extern unsigned int _get_core_num();
+#endif
+
 #ifdef __cplusplus
 }
 #endif
@@ -45,10 +49,19 @@ void assert_print(const char *fmt, ...);
 #endif /* CONFIG_ASSERT_NO_MSG_INFO */
 
 #if !defined(CONFIG_ASSERT_NO_COND_INFO) && !defined(CONFIG_ASSERT_NO_FILE_INFO)
+#if defined(CONFIG_SMP)
+#define __ASSERT_LOC(test)                              \
+    __asm volatile ("bkpt 0"); \
+	__ASSERT_PRINT("ASSERTION FAIL (Core %d) [%s] @ %s:%d\n", \
+		_get_core_num(),                        \
+		Z_STRINGIFY(test),                      \
+		__FILE__, __LINE__)
+#else
 #define __ASSERT_LOC(test)                              \
 	__ASSERT_PRINT("ASSERTION FAIL [%s] @ %s:%d\n", \
 		Z_STRINGIFY(test),                      \
 		__FILE__, __LINE__)
+#endif /* CONFIG_SMP */
 #endif
 
 #if defined(CONFIG_ASSERT_NO_COND_INFO) && !defined(CONFIG_ASSERT_NO_FILE_INFO)

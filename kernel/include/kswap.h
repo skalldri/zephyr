@@ -252,6 +252,10 @@ static inline void z_dummy_thread_init(struct k_thread *dummy_thread)
 	dummy_thread->resource_pool = NULL;
 #endif
 
+#if defined(CONFIG_ARCH_HAS_CUSTOM_DUMMY_THREAD_INIT)
+	arch_dummy_thread_init(dummy_thread);
+#endif /* CONFIG_ARCH_HAS_CUSTOM_DUMMY_THREAD_INIT */
+	
 	unsigned int key = arch_irq_lock();
 
 	_current_cpu->current = dummy_thread;

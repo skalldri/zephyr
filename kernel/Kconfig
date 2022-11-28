@@ -588,6 +588,15 @@ config ARCH_HAS_CUSTOM_SWAP_TO_MAIN
 	  the _main() thread, but instead must do something custom. It must
 	  enable this option in that case.
 
+config ARCH_HAS_CUSTOM_DUMMY_THREAD_INIT
+	bool
+	help
+	  It's possible that an architecture needs to perform additional setup of
+	  the "dummy thread" (used during the initial context switch). This options
+	  allows the architecture to indicate that z_dummy_thread_init() must call
+	  arch_dummy_thread_init() to finish setting up the dummy thread before it
+	  can be used during the initial context switch.
+
 config SWAP_NONATOMIC
 	bool
 	help

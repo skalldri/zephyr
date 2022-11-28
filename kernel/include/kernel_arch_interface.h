@@ -171,6 +171,21 @@ void arch_switch_to_main_thread(struct k_thread *main_thread, char *stack_ptr,
 				k_thread_entry_t _main);
 #endif /* CONFIG_ARCH_HAS_CUSTOM_SWAP_TO_MAIN */
 
+#ifdef CONFIG_ARCH_HAS_CUSTOM_DUMMY_THREAD_INIT
+/**
+ * Custom logic for initializing the dummy thread
+ *
+ * Used by architectures where additional work is requried to setup the dummy thread
+ * than the boilerplate logic in z_dummy_thread_init(). This function is executed
+ * after the intial z_dummy_thread_init() logic, which gives the arch function an 
+ * opportunity to override any configuration set by the boilerplate z_dummy_thread_init()
+ * logic.
+ *
+ * @param dummy_thread dummy thread object to initialize
+ */
+void arch_dummy_thread_init(struct k_thread *dummy_thread);
+#endif /* CONFIG_ARCH_HAS_CUSTOM_DUMMY_THREAD_INIT */
+
 #if defined(CONFIG_FPU) && defined(CONFIG_FPU_SHARING)
 /**
  * @brief Disable floating point context preservation

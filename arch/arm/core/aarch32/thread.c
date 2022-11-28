@@ -41,6 +41,19 @@
 K_THREAD_STACK_DECLARE(z_main_stack, CONFIG_MAIN_STACK_SIZE);
 #endif
 
+/**
+ * @brief 
+ * 
+ * @param dummy_thread 
+ */
+void arch_dummy_thread_init(struct k_thread *dummy_thread)
+{
+#if defined(CONFIG_USE_SWITCH)
+	dummy_thread->arch.switch_to = NULL;
+	dummy_thread->arch.switched_from = NULL;
+#endif
+}
+
 /* An initial context, to be "restored" by z_arm_pendsv(), is put at the other
  * end of the stack, and thus reusable by the stack when not needed anymore.
  *

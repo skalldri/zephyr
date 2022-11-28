@@ -22,6 +22,7 @@
 typedef struct {
     arch_cpustart_t fn;
     void* arg;
+    char* stack_real;
 } rp2040_launch_config_t;
 
 static bool cpus_active[CONFIG_MP_NUM_CPUS];
@@ -29,16 +30,15 @@ static rp2040_launch_config_t cpu_launch_config[CONFIG_MP_NUM_CPUS];
 
 extern void *_vector_table[];
 
+extern void z_arm_secondary_core_reset(void);
 
-
-void _secondary_processor_trampoline_start()
+void z_arm_secondary_core_entry()
 {
-    printk("Hello from CPU 1!\n");
-
-    //k_busy_wait(10 * USEC_PER_SEC);
+    k_busy_wait(15 * USEC_PER_SEC);
     //__breakpoint();
+    //printk("Starting run!\n");
 
-    printk("Starting run!\n");
+    printk("*** Booting Zephyr OS - Secondary CPU %d ***\n", arch_proc_id());
 
     // RP2040 only has a single secondary processor. If this function is executing, we must be
     // the secondary processor.
@@ -64,8 +64,10 @@ void arch_start_cpu(int cpu_num, k_thread_stack_t *stack, int sz, arch_cpustart_
 
     char* stack_real = Z_KERNEL_STACK_BUFFER(stack) + sz;
 
+    printk("Starting CPU %d with stack pointer %p\n", stack_real);
+
     multicore_reset_core1();
-    multicore_launch_core1_raw(_secondary_processor_trampoline_start, (uint32_t*)stack_real, (uint32_t)_vector_table);
+    multicore_launch_core1_raw(z_arm_secondary_core_reset, (uint32_t*)stack_real, (uint32_t)_vector_table);
 }
 
 /**
