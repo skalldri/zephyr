@@ -106,6 +106,8 @@ static ALWAYS_INLINE unsigned int do_swap(unsigned int key,
 	new_thread = z_swap_next_thread();
 
 	if (new_thread != old_thread) {
+		//printk("swap(%d): new:%p old:%p\n", arch_proc_id(), new_thread, old_thread);
+
 		z_sched_usage_switch(new_thread);
 
 #ifdef CONFIG_SMP

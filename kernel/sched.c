@@ -226,11 +226,23 @@ static ALWAYS_INLINE void *curr_cpu_runq(void)
 
 static ALWAYS_INLINE void runq_add(struct k_thread *thread)
 {
+	/*printk(
+		"runq_add(%d): %p, is_queued: %d\n", 
+		arch_proc_id(), 
+		thread,
+		z_is_thread_queued(thread));*/
+
 	_priq_run_add(thread_runq(thread), thread);
 }
 
 static ALWAYS_INLINE void runq_remove(struct k_thread *thread)
 {
+	/*printk(
+		"runq_remove(%d): %p, is_queued: %d\n", 
+		arch_proc_id(), 
+		thread,
+		z_is_thread_queued(thread));*/
+
 	_priq_run_remove(thread_runq(thread), thread);
 }
 
@@ -244,7 +256,11 @@ static ALWAYS_INLINE struct k_thread *runq_best(void)
  */
 static inline bool should_queue_thread(struct k_thread *th)
 {
-	return !IS_ENABLED(CONFIG_SMP) || th != _current;
+	if (!IS_ENABLED(CONFIG_SMP)) {
+		return true;
+	}
+
+	return (!z_is_idle_thread_object(th)) && (th != _current);
 }
 
 static ALWAYS_INLINE void queue_thread(struct k_thread *thread)
@@ -305,7 +321,7 @@ static void signal_pending_ipi(void)
  */
 void z_requeue_current(struct k_thread *curr)
 {
-	if (z_is_thread_queued(curr)) {
+	if (z_is_thread_queued(curr) && !z_is_idle_thread_object(curr)) {
 		runq_add(curr);
 	}
 	signal_pending_ipi();
@@ -383,8 +399,7 @@ static ALWAYS_INLINE struct k_thread *next_up(void)
 	}
 
 	/* Put _current back into the queue */
-	if (thread != _current && active &&
-		!z_is_idle_thread_object(_current) && !queued) {
+	if (thread != _current && active && !queued) {
 		queue_thread(_current);
 	}
 
@@ -1109,7 +1124,7 @@ void *z_get_next_switch_handle(void *interrupted)
 				(void*)new_thread,
 				(void*)new_thread->arch.switched_from);
 
-			// printk("z_get_next_switch_handle: old (%p) -> new (%p)\n", (void*)old_thread, (void*)new_thread);
+			//printk("z_get_next_switch_handle(%d): old (%p) -> new (%p)\n", arch_proc_id(), (void*)old_thread, (void*)new_thread);
 			update_metairq_preempt(new_thread);
 			wait_for_switch(new_thread);
 			arch_cohere_stacks(old_thread, interrupted, new_thread);
@@ -1136,7 +1151,7 @@ void *z_get_next_switch_handle(void *interrupted)
 			 * being set below.  This is safe now, as we
 			 * will not return into it.
 			 */
-			if (z_is_thread_queued(old_thread)) {
+			if (z_is_thread_queued(old_thread) && !z_is_idle_thread_object(old_thread)) {
 				runq_add(old_thread);
 			}
 		}
@@ -1417,11 +1432,16 @@ void z_impl_k_yield(void)
 
 	k_spinlock_key_t key = k_spin_lock(&sched_spinlock);
 
+	//printk("z_impl_k_yield(%d) start\n", arch_proc_id());
+
 	if (!IS_ENABLED(CONFIG_SMP) ||
 	    z_is_thread_queued(_current)) {
 		dequeue_thread(_current);
 	}
 	queue_thread(_current);
+
+	//printk("z_impl_k_yield(%d) end\n", arch_proc_id());
+
 	update_cache(1);
 	z_swap(&sched_spinlock, key);
 }
