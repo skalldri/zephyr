@@ -254,7 +254,44 @@ static ALWAYS_INLINE struct k_thread *runq_best(void)
 /* _current is never in the run queue until context switch on
  * SMP configurations, see z_requeue_current()
  */
+
+/**
+ * @brief This function is used in queue_thread() to test if a thread should
+ * be added back to the runq.
+ * 
+ * On non-SMP systems, we always add the thread back to the runq in the queue_thread() function.
+ * This is because there is no possibility for a deadlock with another processor which might try to
+ * grab the "_current" thread from the runq while it's still active locally.
+ * 
+ * On SMP systems, we don't add the thread back to the runq until we are deep within the do_swap() function.
+ * At that point, we have selected a new thread to switch to, and we have waited for that thread to become available
+ * for this processor to take ownership. Only at that point (after we have waited for the next thread to become available)
+ * can we safely put _current back in the runq. 
+ * 
+ * This avoids a potential deadlock where two cores want to swap threads with each other, and both get stuck waiting 
+ * for the other core to swap out the thread in question. Since _current doesn't enter the runq until after we've finished
+ * waiting for the other thread, no other core can possibly be waiting on _current.
+ *
+ * 
+ * @param th the thread we are attempting to queue
+ * @return true add the thread to the runq
+ * @return false do not add the thread to the runq
+ */
 static inline bool should_queue_thread(struct k_thread *th)
+{
+	if (!IS_ENABLED(CONFIG_SMP)) {
+		return true;
+	}
+
+	// This check is too simplistic...
+	// if (IS_ENABLED(CONFIG_SMP)) {
+	// 	return false;
+	// }
+
+	return (!z_is_idle_thread_object(th)) && (th != _current);
+}
+
+static inline bool should_dequeue_thread(struct k_thread *th)
 {
 	if (!IS_ENABLED(CONFIG_SMP)) {
 		return true;
@@ -280,15 +317,7 @@ static ALWAYS_INLINE void queue_thread(struct k_thread *thread)
 static ALWAYS_INLINE void dequeue_thread(struct k_thread *thread)
 {
 	thread->base.thread_state &= ~_THREAD_QUEUED;
-	if (should_queue_thread(thread)) {
-		runq_remove(thread);
-	}
-}
-
-void z_dequeue_thread(struct k_thread *thread)
-{
-	thread->base.thread_state &= ~_THREAD_QUEUED;
-	if (should_queue_thread(thread)) {
+	if (should_dequeue_thread(thread)) {
 		runq_remove(thread);
 	}
 }
@@ -310,6 +339,23 @@ static void signal_pending_ipi(void)
 		}
 	}
 #endif
+}
+
+/**
+ * @brief Helper function used to remove threads from the runq by code outside the scheduler
+ *
+ * This function can break the OS if used improperly. It is intended to be used by custom startup
+ * code which needs to remove the z_main_thread from the runq if starting with a custom 
+ * switch-to-main function
+ * 
+ * @param thread a k_thread object to remove from the runq
+ */
+void z_dequeue_thread(struct k_thread *thread)
+{
+	thread->base.thread_state &= ~_THREAD_QUEUED;
+	if (should_dequeue_thread(thread)) {
+		runq_remove(thread);
+	}
 }
 
 #ifdef CONFIG_SMP

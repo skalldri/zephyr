@@ -38,55 +38,55 @@ SECTION_SUBSEC_FUNC(exc_vector_table,_vector_table_section,_vector_table)
      */
     .word z_main_stack + CONFIG_MAIN_STACK_SIZE
 
-    .word z_arm_reset
-    .word z_arm_nmi
+    .word z_arm_reset // IRQ 1: Reset vector
+    .word z_arm_nmi   // IRQ 2: Non-maskable Interrupt
 
-    .word z_arm_hard_fault
+    .word z_arm_hard_fault // IRQ 3: Hard Fault
 #if defined(CONFIG_ARMV6_M_ARMV8_M_BASELINE)
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word 0
-    .word z_arm_svc
-    .word 0
+    .word 0 // IRQ 4: Reserved
+    .word 0 // IRQ 5: Reserved
+    .word 0 // IRQ 6: Reserved
+    .word 0 // IRQ 7: Reserved
+    .word 0 // IRQ 8: Reserved
+    .word 0 // IRQ 9: Reserved
+    .word 0 // IRQ 10: Reserved
+    .word z_arm_svc // IRQ 11: SVCall
+    .word 0 // IRQ 12: Reserved
 #elif defined(CONFIG_ARMV7_M_ARMV8_M_MAINLINE)
-    .word z_arm_mpu_fault
-    .word z_arm_bus_fault
-    .word z_arm_usage_fault
+    .word z_arm_mpu_fault // IRQ 4:
+    .word z_arm_bus_fault // IRQ 5:
+    .word z_arm_usage_fault // IRQ 6:
 #if defined(CONFIG_ARMV8_M_SE)
 #if defined(CONFIG_ARM_SECURE_FIRMWARE)
-    .word z_arm_secure_fault
+    .word z_arm_secure_fault // IRQ 7
 #else
-    .word z_arm_exc_spurious
+    .word z_arm_exc_spurious // IRQ 7
 #endif /* CONFIG_ARM_SECURE_FIRMWARE */
 #else
-    .word 0
+    .word 0 // IRQ 7
 #endif /* CONFIG_ARMV8_M_SE */
-    .word 0
-    .word 0
-    .word 0
-    .word z_arm_svc
-    .word z_arm_debug_monitor
+    .word 0 // IRQ 8
+    .word 0 // IRQ 9
+    .word 0 // IRQ 10
+    .word z_arm_svc // IRQ 11: SVCall
+    .word z_arm_debug_monitor // IRQ 12: Debug Monitor
 #else
 #error Unknown ARM architecture
 #endif /* CONFIG_ARMV6_M_ARMV8_M_BASELINE */
-    .word 0
+    .word 0 // IRQ 13: Reserved
 #if defined(CONFIG_MULTITHREADING)
-    .word z_arm_pendsv
+    .word z_arm_pendsv // IRQ 14: PendSV
 #else
-    .word z_arm_exc_spurious
+    .word z_arm_exc_spurious // IRQ 14: PendSV
 #endif
 #if defined(CONFIG_CPU_CORTEX_M_HAS_SYSTICK)
 #if defined(CONFIG_SYS_CLOCK_EXISTS) && \
     defined(CONFIG_CORTEX_M_SYSTICK_INSTALL_ISR)
-    .word sys_clock_isr
+    .word sys_clock_isr // IRQ 15: SysTick timer, optional
 #else
-    .word z_arm_exc_spurious
+    .word z_arm_exc_spurious // IRQ 15: SysTick timer, optional
 #endif /* CONFIG_SYS_CLOCK_EXISTS && CONFIG_CORTEX_M_SYSTICK_INSTALL_ISR */
 #else
-    .word 0
+    .word 0 // IRQ 15: SysTick timer, optional
 #endif /* CONFIG_CPU_CORTEX_M_HAS_SYSTICK */
 

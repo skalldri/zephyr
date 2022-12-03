@@ -21,6 +21,7 @@ config RP2040_SMP
 	default y
 	select PICOSDK_USE_MULTICORE if SMP
 	select ATOMIC_OPERATIONS_ARCH if SMP
+	select SCHED_IPI_SUPPORTED if SMP
 	#select PLATFORM_SPECIFIC_INIT if SMP
 
 # RP2040 has two CPUs that can be used in SMP mode

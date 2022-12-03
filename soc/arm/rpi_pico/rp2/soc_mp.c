@@ -15,9 +15,11 @@
 #include <zephyr/sys/arch_interface.h>
 #include <zephyr/kernel/thread_stack.h>
 #include <zephyr/kernel.h>
+#include <zephyr/init.h>
 
 #include <pico/multicore.h>
 #include <hardware/sync.h>
+#include <hardware/regs/intctrl.h>
 
 typedef struct {
     arch_cpustart_t fn;
@@ -32,6 +34,36 @@ extern void *_vector_table[];
 
 extern void z_arm_secondary_core_reset(void);
 
+ISR_DIRECT_DECLARE(ipi_0_isr) {
+    // Drain the fifo
+    multicore_fifo_drain();
+
+    // Clear ISR
+    multicore_fifo_clear_irq();
+
+    // Signal Zephyr that we received an ISR
+    z_sched_ipi();
+
+    return 1;
+}
+
+ISR_DIRECT_DECLARE(ipi_1_isr) {
+    // Drain the fifo
+    multicore_fifo_drain();
+
+    // Clear ISR
+    multicore_fifo_clear_irq();
+
+    // Signal Zephyr that we received an ISR
+    z_sched_ipi();
+
+    return 1;
+}
+
+void arch_sched_ipi() {
+    multicore_fifo_push_blocking(0xDEADBEEF);
+}
+
 void z_arm_secondary_core_entry()
 {
     //k_busy_wait(10 * USEC_PER_SEC);
@@ -39,6 +71,9 @@ void z_arm_secondary_core_entry()
     //printk("Starting run!\n");
 
     printk("*** Booting Zephyr OS - Secondary CPU %d ***\n", arch_proc_id());
+
+    IRQ_DIRECT_CONNECT(SIO_IRQ_PROC1, 0, ipi_1_isr, 0);
+    irq_enable(SIO_IRQ_PROC1);
 
     // RP2040 only has a single secondary processor. If this function is executing, we must be
     // the secondary processor.
@@ -81,3 +116,19 @@ bool arch_cpu_active(int cpu_num)
 {
     return cpus_active[cpu_num];
 }
+
+static int rp2040_smp_init(const struct device *arg)
+{
+	uint32_t key;
+
+	key = irq_lock();
+	
+    IRQ_DIRECT_CONNECT(SIO_IRQ_PROC0, 0, ipi_0_isr, 0);
+    irq_enable(SIO_IRQ_PROC0);
+
+	irq_unlock(key);
+
+	return 0;
+}
+
+SYS_INIT(rp2040_smp_init, PRE_KERNEL_1, 1);
