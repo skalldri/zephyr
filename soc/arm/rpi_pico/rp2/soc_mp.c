@@ -133,6 +133,8 @@ void rp2040_mp_lockout() {
     // Request the other core lock-out
     mc_fifo_push_blocking(RP2040_FIFO_LOCKOUT_REQ);
 
+    // Spin-lock waiting for the other core to lockout
+
     // Wait for the core to reply via ISR
     k_sem_take(&lockout_sem[arch_proc_id()], K_FOREVER);
 }

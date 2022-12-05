@@ -32,7 +32,22 @@
 
 static struct k_spinlock lock;
 
+/**
+ * @brief The value that was loaded into the "LOAD" SysTick register most recently.
+ * 
+ * This value is used when an overflow is detected: it represents the amount of time 
+ * that elapsed _before_ the overflow occurred.
+ * 
+ * We use this to calculate the time elapsed since the timer was last programmed. 
+ * Either we detect an overflow, and so the time elapsed since last programming is last_load + current timer, 
+ * or no overflow occurred, so the time since last programming is just current timer
+ */
+#if !defined(CONFIG_SMP)
 static uint32_t last_load;
+#else
+static uint32_t _last_load[CONFIG_MP_NUM_CPUS];
+#define last_load _last_load[arch_proc_id()]
+#endif
 
 /*
  * This local variable holds the amount of SysTick HW cycles elapsed
@@ -44,13 +59,23 @@ static uint32_t last_load;
  *
  * t = cycle_counter + elapsed();
  */
+#if !defined(CONFIG_SMP)
 static uint32_t cycle_count;
+#else
+static uint32_t _cycle_count[CONFIG_MP_NUM_CPUS];
+#define cycle_count _cycle_count[arch_proc_id()]
+#endif
 
 /*
  * This local variable holds the amount of elapsed SysTick HW cycles
  * that have been announced to the kernel.
  */
+#if !defined(CONFIG_SMP)
 static uint32_t announced_cycles;
+#else
+static uint32_t _announced_cycles[CONFIG_MP_NUM_CPUS];
+#define announced_cycles _announced_cycles[arch_proc_id()]
+#endif
 
 /*
  * This local variable holds the amount of elapsed HW cycles due to
