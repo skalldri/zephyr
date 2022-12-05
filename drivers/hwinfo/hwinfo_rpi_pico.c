@@ -30,6 +30,8 @@ ssize_t z_impl_hwinfo_get_device_id(uint8_t *buffer, size_t length)
 	 * disabled, it will halt. Therefore, interrupts must be disabled
 	 * before fetching the ID.
 	 */
+	key = irq_lock();
+
 #if defined(CONFIG_SMP)
 	/* 
 	 * In addition, in SMP we also need to lockout the other core while executing flash instructions.
@@ -37,13 +39,13 @@ ssize_t z_impl_hwinfo_get_device_id(uint8_t *buffer, size_t length)
 	rp2040_mp_lockout();
 #endif
 
-	key = irq_lock();
 	flash_get_unique_id(id);
-	irq_unlock(key);
 
 #if defined(CONFIG_SMP)
 	rp2040_mp_unlock();
 #endif
+
+	irq_unlock(key);
 
 	if (length > sizeof(id)) {
 		length = sizeof(id);

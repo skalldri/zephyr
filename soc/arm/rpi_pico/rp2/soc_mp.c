@@ -29,7 +29,6 @@ typedef struct {
 
 static bool cpus_active[CONFIG_MP_NUM_CPUS];
 static rp2040_launch_config_t cpu_launch_config[CONFIG_MP_NUM_CPUS];
-struct k_sem lockout_sem[CONFIG_MP_NUM_CPUS];
 
 extern void *_vector_table[];
 
@@ -93,12 +92,6 @@ __ramfunc int ipi_isr(uint8_t isr) {
                 mc_fifo_push_blocking(RP2040_FIFO_LOCKOUT_ACK);
                 break;
 
-            case RP2040_FIFO_LOCKOUT_ACK:
-                //printk("Core %d received lockout ACK\n", arch_proc_id());
-                // Give our semaphore to unblock rp2040_mp_lockout()
-                k_sem_give(&lockout_sem[arch_proc_id()]);
-                break;
-
             case RP2040_FIFO_UNLOCK:
                 __ASSERT(lockout == true, "Core %d: Request to unlock while not locked!", arch_proc_id());
                 //printk("Core %d received unlock, exiting spinlock\n", arch_proc_id());
@@ -129,14 +122,21 @@ void arch_sched_ipi() {
     multicore_fifo_push_blocking(RP2040_FIFO_IPI);
 }
 
+/**
+ * @brief Must be called under irq_lock()!
+ * 
+ */
 void rp2040_mp_lockout() {
     // Request the other core lock-out
     mc_fifo_push_blocking(RP2040_FIFO_LOCKOUT_REQ);
 
-    // Spin-lock waiting for the other core to lockout
-
-    // Wait for the core to reply via ISR
-    k_sem_take(&lockout_sem[arch_proc_id()], K_FOREVER);
+    // Spin-lock waiting for the other core to acknowledge the lockout
+    while (true) {
+        uint32_t word = mc_fifo_pop_blocking();
+        if (word == RP2040_FIFO_LOCKOUT_ACK) {
+            break;
+        }
+    }
 }
 
 void rp2040_mp_unlock() {
@@ -221,13 +221,6 @@ static int rp2040_smp_init(const struct device *arg)
     IRQ_DIRECT_CONNECT(SIO_IRQ_PROC0, 0, ipi_0_isr, 0);
 
 	irq_unlock(key);
-
-    for (int i = 0; i < CONFIG_MP_NUM_CPUS; i++) {
-        // Initialize all semaphores to 0, with max value of 1
-        // The semaphore contract is, while we are holding the semaphore represented by our Core ID,
-        // the other core is locked out and will not execute
-        k_sem_init(&lockout_sem[i], 0, 1);
-    }
 
 	return 0;
 }
