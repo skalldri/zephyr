@@ -145,8 +145,12 @@ void rp2040_mp_unlock() {
     mc_fifo_push_blocking(RP2040_FIFO_UNLOCK);
 }
 
+extern void z_arm_interrupt_init();
+
 void z_arm_secondary_core_entry()
 {
+    z_arm_interrupt_init();
+
     //k_busy_wait(10 * USEC_PER_SEC);
     //__breakpoint();
     //printk("Starting run!\n");

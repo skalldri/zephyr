@@ -41,7 +41,8 @@
  * PendSV IRQ (which is used in Cortex-M variants to implement thread
  * context-switching) is assigned the lowest IRQ priority level.
  */
-#if defined(CONFIG_CPU_CORTEX_M_HAS_PROGRAMMABLE_FAULT_PRIOS)
+#if defined(CONFIG_CPU_CORTEX_M_HAS_PROGRAMMABLE_FAULT_PRIOS) || defined(CONFIG_SMP)
+// On SMP systems, we need Priority 0 to be reserved for PendSV and SVC Call _only_
 #define _EXCEPTION_RESERVED_PRIO 1
 #else
 #define _EXCEPTION_RESERVED_PRIO 0
@@ -56,8 +57,16 @@
 
 #define _EXC_IRQ_DEFAULT_PRIO Z_EXC_PRIO(_IRQ_PRIO_OFFSET)
 
+#if !defined(CONFIG_SMP)
 /* Use lowest possible priority level for PendSV */
 #define _EXC_PENDSV_PRIO 0xff
+#else 
+/** 
+ * Use highest possible priority for PendSV in SMP, to prevent it from being interrupted once active.
+ * Disrupting PendSV once active in SMP can lead to deadlocks
+ */
+#define _EXC_PENDSV_PRIO 0x00
+#endif
 #define _EXC_PENDSV_PRIO_MASK Z_EXC_PRIO(_EXC_PENDSV_PRIO)
 #endif /* CONFIG_CPU_CORTEX_M */
 
