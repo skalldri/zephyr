@@ -9,6 +9,10 @@
 #include <hardware/flash.h>
 #include <hardware/structs/vreg_and_chip_reset.h>
 
+#if defined(CONFIG_SMP)
+#include <rp2040_mp.h>
+#endif
+
 #define FLASH_RUID_DATA_BYTES 8
 
 #define HAD_RUN_BIT BIT(VREG_AND_CHIP_RESET_CHIP_RESET_HAD_RUN_LSB)
@@ -26,9 +30,20 @@ ssize_t z_impl_hwinfo_get_device_id(uint8_t *buffer, size_t length)
 	 * disabled, it will halt. Therefore, interrupts must be disabled
 	 * before fetching the ID.
 	 */
+#if defined(CONFIG_SMP)
+	/* 
+	 * In addition, in SMP we also need to lockout the other core while executing flash instructions.
+	 */
+	rp2040_mp_lockout();
+#endif
+
 	key = irq_lock();
 	flash_get_unique_id(id);
 	irq_unlock(key);
+
+#if defined(CONFIG_SMP)
+	rp2040_mp_unlock();
+#endif
 
 	if (length > sizeof(id)) {
 		length = sizeof(id);

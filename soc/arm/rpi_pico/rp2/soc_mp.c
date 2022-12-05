@@ -29,39 +29,118 @@ typedef struct {
 
 static bool cpus_active[CONFIG_MP_NUM_CPUS];
 static rp2040_launch_config_t cpu_launch_config[CONFIG_MP_NUM_CPUS];
+struct k_sem lockout_sem[CONFIG_MP_NUM_CPUS];
 
 extern void *_vector_table[];
 
 extern void z_arm_secondary_core_reset(void);
 
-ISR_DIRECT_DECLARE(ipi_0_isr) {
-    // Drain the fifo
-    multicore_fifo_drain();
+#define RP2040_FIFO_IPI 0xDEADBEEF
+#define RP2040_FIFO_LOCKOUT_REQ 0xBADC0FEE
+#define RP2040_FIFO_LOCKOUT_ACK 0xBADC00DE
+#define RP2040_FIFO_UNLOCK 0xFEE12BAD
 
-    // Clear ISR
-    multicore_fifo_clear_irq();
+// Re-implement functions from the RP2040 SDK to _ensure_ they are always __ramfunc
+__ramfunc bool mc_fifo_rvalid() {
+    return !!(sio_hw->fifo_st & SIO_FIFO_ST_VLD_BITS);
+}
 
-    // Signal Zephyr that we received an ISR
-    z_sched_ipi();
+__ramfunc uint32_t mc_fifo_pop_blocking() {
+    // If nothing there yet, we wait for an event first,
+    // to try and avoid too much busy waiting
+    while (!mc_fifo_rvalid()) {
+        __wfe();
+    }
+
+    return sio_hw->fifo_rd;
+}
+
+__ramfunc bool mc_fifo_wready(void) {
+    return !!(sio_hw->fifo_st & SIO_FIFO_ST_RDY_BITS);
+}
+
+__ramfunc void mc_fifo_push_blocking(int32_t data) {
+    // We wait for the fifo to have some space
+    while (!mc_fifo_wready()) {}
+
+    sio_hw->fifo_wr = data;
+
+    // Fire off an event to the other core
+    __sev();
+}
+
+__ramfunc void mc_fifo_clear_irq(void) {
+    // Write any value to clear the error flags
+    sio_hw->fifo_st = 0xff;
+}
+
+__ramfunc int ipi_isr(uint8_t isr) {
+    bool lockout = false;
+
+    while (lockout || mc_fifo_rvalid()) {
+        uint32_t word = mc_fifo_pop_blocking();
+
+        switch (word) {
+            case RP2040_FIFO_IPI:
+                z_sched_ipi();
+                break;
+
+            case RP2040_FIFO_LOCKOUT_REQ:
+                // The other core has requested that we lock out.
+                __ASSERT(lockout == false, "Core %d: Request to lockout while already locked!", arch_proc_id());
+                //printk("Core %d entering RAMFUNC spinlock\n", arch_proc_id());
+                lockout = true;
+                mc_fifo_push_blocking(RP2040_FIFO_LOCKOUT_ACK);
+                break;
+
+            case RP2040_FIFO_LOCKOUT_ACK:
+                //printk("Core %d received lockout ACK\n", arch_proc_id());
+                // Give our semaphore to unblock rp2040_mp_lockout()
+                k_sem_give(&lockout_sem[arch_proc_id()]);
+                break;
+
+            case RP2040_FIFO_UNLOCK:
+                __ASSERT(lockout == true, "Core %d: Request to unlock while not locked!", arch_proc_id());
+                //printk("Core %d received unlock, exiting spinlock\n", arch_proc_id());
+                lockout = false;
+                break;
+
+            default:
+                __ASSERT(false, "Unknown value received in multicore FIFO on core %d: %u", arch_proc_id(), word);
+                break;
+        }
+    }
+
+    // Clear IRQ
+    mc_fifo_clear_irq();
 
     return 1;
+}
+
+ISR_DIRECT_DECLARE(ipi_0_isr) {
+    return ipi_isr(0);
 }
 
 ISR_DIRECT_DECLARE(ipi_1_isr) {
-    // Drain the fifo
-    multicore_fifo_drain();
-
-    // Clear ISR
-    multicore_fifo_clear_irq();
-
-    // Signal Zephyr that we received an ISR
-    z_sched_ipi();
-
-    return 1;
+    return ipi_isr(1);
 }
 
 void arch_sched_ipi() {
-    multicore_fifo_push_blocking(0xDEADBEEF);
+    multicore_fifo_push_blocking(RP2040_FIFO_IPI);
+}
+
+void rp2040_mp_lockout() {
+    // Request the other core lock-out
+    mc_fifo_push_blocking(RP2040_FIFO_LOCKOUT_REQ);
+
+    // Wait for the core to reply via ISR
+    k_sem_take(&lockout_sem[arch_proc_id()], K_FOREVER);
+}
+
+void rp2040_mp_unlock() {
+    // Tell the other core it's unlocked
+    // DO NOT reset the semaphore here: only the ISR is allowed to reset the semaphore
+    mc_fifo_push_blocking(RP2040_FIFO_UNLOCK);
 }
 
 void z_arm_secondary_core_entry()
@@ -71,6 +150,11 @@ void z_arm_secondary_core_entry()
     //printk("Starting run!\n");
 
     printk("*** Booting Zephyr OS - Secondary CPU %d ***\n", arch_proc_id());
+
+    // Drain the FIFO and clear any pending IRQs from the FIFO before we enable the FIFO
+    // ISR
+    multicore_fifo_drain();
+    multicore_fifo_clear_irq();
 
     IRQ_DIRECT_CONNECT(SIO_IRQ_PROC1, 0, ipi_1_isr, 0);
     irq_enable(SIO_IRQ_PROC1);
@@ -103,6 +187,14 @@ void arch_start_cpu(int cpu_num, k_thread_stack_t *stack, int sz, arch_cpustart_
 
     multicore_reset_core1();
     multicore_launch_core1_raw(z_arm_secondary_core_reset, (uint32_t*)stack_real, (uint32_t)_vector_table);
+
+    // Drain our FIFO to ensure there are no stale messages from the bootloader process, and
+    // clear any stale IRQs in the FIFO
+    multicore_fifo_drain();
+    multicore_fifo_clear_irq();
+
+    // Now that the second core has launched, and our FIFO is drained, we can enable the IRQ for the FIFO
+    irq_enable(SIO_IRQ_PROC0);
 }
 
 /**
@@ -122,11 +214,18 @@ static int rp2040_smp_init(const struct device *arg)
 	uint32_t key;
 
 	key = irq_lock();
-	
+
+    // Don't enable the IRQ yet, since it's used by the PicoSDK during the bootloading process
     IRQ_DIRECT_CONNECT(SIO_IRQ_PROC0, 0, ipi_0_isr, 0);
-    irq_enable(SIO_IRQ_PROC0);
 
 	irq_unlock(key);
+
+    for (int i = 0; i < CONFIG_MP_NUM_CPUS; i++) {
+        // Initialize all semaphores to 0, with max value of 1
+        // The semaphore contract is, while we are holding the semaphore represented by our Core ID,
+        // the other core is locked out and will not execute
+        k_sem_init(&lockout_sem[i], 0, 1);
+    }
 
 	return 0;
 }
