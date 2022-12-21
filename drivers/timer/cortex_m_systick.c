@@ -70,11 +70,11 @@ static uint32_t _cycle_count[CONFIG_MP_NUM_CPUS];
  * This local variable holds the amount of elapsed SysTick HW cycles
  * that have been announced to the kernel.
  */
-#if !defined(CONFIG_SMP)
 static uint32_t announced_cycles;
-#else
-static uint32_t _announced_cycles[CONFIG_MP_NUM_CPUS];
-#define announced_cycles _announced_cycles[arch_proc_id()]
+
+#if defined(CONFIG_SMP)
+static uint32_t _announced_cycles_at_config[CONFIG_MP_NUM_CPUS];
+#define announced_cycles_at_config _announced_cycles_at_config[arch_proc_id()]
 #endif
 
 /*
@@ -149,6 +149,14 @@ ISR_DIRECT_DECLARE(sys_clock_isr)
 	/* Increment the amount of HW cycles elapsed (complete counter
 	 * cycles) and announce the progress to the kernel.
 	 */
+	// Why overflow_cyc?
+	// The IRQ is generated when the SysTick goes to zero. SysTick _immediately_ starts counting again.
+	// The ISR runs slightly later, after the counter is already counting back down.
+	// The return value from elapsed() includes the time after the IRQ is generated, including the 
+	// time SysTick has already been running
+	// overflow_cyc is just the time leading up-to the SysTick hitting zero. It doesn't include 
+	// any of the time after.
+	// So that's the real time we want to publish.
 	cycle_count += overflow_cyc;
 	overflow_cyc = 0;
 
@@ -164,7 +172,21 @@ ISR_DIRECT_DECLARE(sys_clock_isr)
 		 *
 		 * We can assess if this is the case by inspecting COUNTFLAG.
 		 */
+		
+		// There are two cores in the system. Each with an independent SysTick.
+		// The cores systick might be out-of sync. Consider the following:
+		//
+		// Core 0: ----|----|----| 
+		//
+		// Core 1:    ----|----|----|
+		//
+		// The core IRQs occur at the | symbols. Consider what happens for the first two IRQs:
+		// - Core 0 publishes a "+4" to system time. System time = 4, Wall time = 4
+		// - Core 1 publishes a "+1" to system time. System time = 8, Wall time = 6!!!
+		// What happened? Core 1 didn't know what the System time was when 
 
+		// FOR SMP: Here, we want to make dticks equal to:
+		// 
 		dticks = (cycle_count - announced_cycles) / CYC_PER_TICK;
 		announced_cycles += dticks * CYC_PER_TICK;
 		sys_clock_announce(dticks);
